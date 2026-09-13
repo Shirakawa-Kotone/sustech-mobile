@@ -10,6 +10,7 @@ Scenarios
     pms-smoke   print service: queue + delete, stations, scans, usage
     pms-upload  pick a file, upload it, see it in the queue
     tis-live    courses & grades against the real TIS (needs injected session)
+    theme       the bottom bar is visible in both device themes (white-on-white guard)
 
 Prerequisites: an emulator is booted (`adb devices`), the mock API is running
 (`python3 tools/mock_pms.py`), and for `pms-*` the app has been pointed at it
@@ -188,6 +189,34 @@ class Ui:
                 return
             self.shell("input", "keyevent", "4")
             time.sleep(1)
+
+    def nav_ink_fraction(self, name: str) -> float:
+        """Share of non-background pixels in the bottom bar.
+
+        This is the one check uiautomator cannot make: an item can be present in
+        the hierarchy and still be invisible (white icon on a white bar), which
+        is exactly the bug this guards against. Unselected items are included,
+        so it fails when only the selected one paints.
+        """
+        from collections import Counter
+
+        from PIL import Image
+
+        path = self.screenshot(name)
+        image = Image.open(path).convert("RGB")
+        width, height = image.size
+        bar = image.crop((0, int(height * 0.90), width, int(height * 0.985)))
+        try:
+            pixels = list(bar.get_flattened_data())  # Pillow >= 11
+        except AttributeError:
+            pixels = list(bar.getdata())
+        background = Counter(pixels).most_common(1)[0][0]
+        ink = sum(
+            1
+            for r, g, b in pixels
+            if abs(r - background[0]) + abs(g - background[1]) + abs(b - background[2]) > 30
+        )
+        return ink / len(pixels)
 
     def screenshot(self, name: str) -> str:
         os.makedirs(SHOTS, exist_ok=True)
@@ -413,6 +442,32 @@ def scenario_pms_upload(ui: Ui, filename: str, user: str, password: str) -> int:
     return report(failures)
 
 
+def scenario_theme(ui: Ui, user: str, password: str) -> int:
+    """The bottom bar must be visible in both device themes, untouched.
+
+    Regression for the bug where the bar rendered white-on-white in dark mode
+    until an item was selected.
+    """
+    failures = []
+    for mode in ("no", "yes"):
+        ui.shell("cmd", "uimode", "night", mode, check=False)
+        time.sleep(4)
+        ensure_signed_in(ui, user, password)
+        to_shell(ui)
+        ui.screenshot(f"80-shell-night-{mode}")
+        ink = ui.nav_ink_fraction(f"81-navbar-night-{mode}")
+        print(f"    night={mode}: bottom-bar ink {ink:.4f}")
+        if ink < 0.02:
+            failures.append(
+                f"bottom bar looks empty in night={mode} (ink {ink:.4f}) — icons or labels are not painting",
+            )
+        for item in ("nav_today", "nav_services", "nav_account"):
+            if not ui.visible(item):
+                failures.append(f"{item} missing in night={mode}")
+    ui.shell("cmd", "uimode", "night", "no", check=False)
+    return report(failures)
+
+
 def scenario_tis_live(ui: Ui) -> int:
     """Courses & grades against the real service (injected session)."""
     failures = []
@@ -469,6 +524,7 @@ def main() -> int:
         "pms-smoke": lambda: scenario_pms_smoke(ui, args.user, args.password),
         "pms-upload": lambda: scenario_pms_upload(ui, args.file, args.user, args.password),
         "tis-live": lambda: scenario_tis_live(ui),
+        "theme": lambda: scenario_theme(ui, args.user, args.password),
     }
     handler = scenarios.get(args.scenario)
     if handler is None:

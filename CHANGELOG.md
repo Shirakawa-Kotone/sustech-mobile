@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.1 — 2026-09-13
+
+- **Fixed: the bottom bar was invisible in dark mode.** The app used a DayNight
+  parent theme while every color in it is a fixed light palette, so on a device
+  in dark mode the bar painted white icons and labels on its white background —
+  nothing showed until an item was selected and picked up the brand color. The
+  theme is now Light-only, dark mode is explicitly forced off, and the bar's
+  icon/label tints are an explicit color state list (brand when selected, muted
+  ink otherwise) instead of theme defaults. (Reported by the user.)
+- **Fixed: an off-campus failure can no longer look like a bad account.**
+  `Session.signIn()` now classifies the outcome — `ACCEPTED`, `REFUSED` or
+  `UNREACHABLE` — and only an explicit refusal from CAS or the print login is
+  treated as wrong credentials. Printing is campus-only, so its 403 (or any
+  timeout, DNS failure or 5xx) is "unreachable": the user is let into the app
+  with an explanation instead of being told their password is wrong.
+  `ApiException` gained a `refused` flag to carry that distinction.
+- Harness: new `theme` scenario asserts, from the pixels, that the bottom bar
+  actually paints in both device themes (`cmd uimode night` yes/no) — uiautomator
+  reports an invisible item as present, so a row count can never catch this.
+
 ## 0.3.0 — 2026-09-13
 
 - **Credentials-only sign-in: one account, entered once.** The app stores the

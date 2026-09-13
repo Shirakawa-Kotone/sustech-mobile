@@ -9,7 +9,6 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import edu.sustech.mobile.R
-import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.core.Credentials
 import edu.sustech.mobile.core.friendly
@@ -19,13 +18,13 @@ import edu.sustech.mobile.sso.Session
 /**
  * The app's only sign-in screen, and the only time credentials are ever typed.
  *
- * One school account is stored and reused for every service (printing, TIS,
- * and whatever comes next); sessions are re-established silently from that
- * account afterwards, so this screen is a first-run stop, not a gate.
+ * One school account is stored and reused for every service; sessions are
+ * re-established silently from it afterwards, so this is a first-run stop, not
+ * a gate.
  *
- * There is deliberately no per-service sign-in and no browser sign-in: TIS
- * refuses mobile browser sign-ins, and a native client has no reason to show
- * someone else's login page.
+ * There is no per-service sign-in and no browser sign-in: TIS refuses mobile
+ * browser sign-ins, and a native client has no reason to show someone else's
+ * login page.
  */
 class LoginActivity : AppCompatActivity() {
 
@@ -49,39 +48,42 @@ class LoginActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             Credentials.save(sid, password)
-            signIn(progress, button, password)
+            signIn(progress, button)
         }
 
-        // Already configured: sign in silently and never show this screen again.
         if (Credentials.configured) {
-            signIn(progress, button, Credentials.password)
+            signIn(progress, button)
         }
     }
 
-    private fun signIn(progress: ProgressBar, button: MaterialButton, password: String) {
+    private fun signIn(progress: ProgressBar, button: MaterialButton) {
         progress.visibility = View.VISIBLE
         button.isEnabled = false
         runIo(
             block = { Session.signIn() },
-            onOk = { accepted ->
+            onOk = { access ->
                 progress.visibility = View.GONE
                 button.isEnabled = true
-                if (accepted) {
-                    openMain()
-                } else {
-                    // The account was refused: keep the screen so it can be fixed.
-                    Toast.makeText(this, R.string.login_rejected, Toast.LENGTH_LONG).show()
+                when (access) {
+                    Session.Access.ACCEPTED -> openMain()
+
+                    // Only an explicit refusal means the account is wrong.
+                    Session.Access.REFUSED ->
+                        Toast.makeText(this, R.string.login_rejected, Toast.LENGTH_LONG).show()
+
+                    // Printing is campus-only, so "nothing answered" is a
+                    // network fact, not a credential fact: let the user in and
+                    // say what happened.
+                    Session.Access.UNREACHABLE -> {
+                        Toast.makeText(this, R.string.login_unreachable, Toast.LENGTH_LONG).show()
+                        openMain()
+                    }
                 }
             },
             onErr = { error ->
                 progress.visibility = View.GONE
                 button.isEnabled = true
-                val message = if (error is ApiException && error.signInRequired) {
-                    getString(R.string.login_rejected)
-                } else {
-                    error.friendly(this)
-                }
-                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                Toast.makeText(this, error.friendly(this), Toast.LENGTH_LONG).show()
             },
         )
     }

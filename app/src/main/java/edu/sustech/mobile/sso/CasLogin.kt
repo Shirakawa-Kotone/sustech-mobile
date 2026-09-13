@@ -81,12 +81,17 @@ object CasLogin {
             }
         } catch (e: IOException) {
             throw ApiException(e.message ?: "network error")
-        } ?: return false
+        } ?: throw ApiException("CAS re-rendered the sign-in page", refused = true)
 
-        if (!location.contains("ticket=")) return false
+        // Redirected back to the sign-in page instead of the service: CAS
+        // rejected the account. A transport problem throws above instead.
+        if (!location.contains("ticket=")) {
+            throw ApiException("CAS rejected the credentials", refused = true)
+        }
 
         // Step 4 — walk the ticket; the service sets its session cookie here.
-        val ticket = location.toHttpUrlOrNull() ?: return false
+        val ticket = location.toHttpUrlOrNull()
+            ?: throw ApiException("CAS returned a malformed ticket URL")
         try {
             App.http.newCall(
                 Request.Builder()

@@ -57,6 +57,13 @@ every service, forever after — the same contract as `sustech_survival`'s
 
 - **No per-service sign-in.** Screens call `Session.ensureX()`; a live session is
   reused, an expired one is re-established silently from the stored account.
+- **A network failure is never a credential failure.** `Session.signIn()`
+  classifies the result: `ACCEPTED` (some service took the account), `REFUSED`
+  (CAS or the print login answered and rejected it) or `UNREACHABLE` (off
+  campus, offline, 5xx). Printing is campus-only, so its 403 off campus lands in
+  `UNREACHABLE`: the user gets in with an explanation rather than being told
+  their password is wrong. Only an explicit refusal keeps them on the sign-in
+  screen.
 - **No browser sign-in.** There is no WebView in the app. TIS refuses mobile
   browser sign-ins, and a native client has no reason to show someone else's
   login page. CAS is implemented natively in `sso/CasLogin.kt`, ported from the
@@ -123,6 +130,7 @@ counts, writing screenshots to `tools/screenshots/`:
 | `pms-smoke` | the app signs in by itself, queue with upload button, delete removes a row, stations / scans / usage all populate |
 | `pms-upload` | file picker → upload → the file reappears in the queue |
 | `tis-live` | the real TIS: week header, classes, courses, grades (needs an injected session) |
+| `theme` | the bottom bar actually paints in both device themes — pixel check, because an invisible item is still "present" to uiautomator |
 
 `tools/inject_session.py --creds` copies the school account in (from the same
 credentials file the Python client uses — the value is never printed). The app

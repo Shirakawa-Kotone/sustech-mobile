@@ -2,6 +2,7 @@ package edu.sustech.mobile.core
 
 import android.content.Context
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatDelegate
 import edu.sustech.mobile.R
 import edu.sustech.mobile.tis.TisApi
 import edu.sustech.mobile.pms.PmsApi
@@ -23,6 +24,9 @@ object App {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        // The UI has one light palette; force it so a device in dark mode cannot
+        // hand the views dark tints on top of white surfaces.
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
         AppConfig.init(appContext)
         Credentials.init(appContext)
     }

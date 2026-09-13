@@ -63,7 +63,11 @@ object PmsAuth {
         )
         val code = loginBody.optInt("code", -1)
         if (code != 0) {
-            throw ApiException("${loginBody.optString("message", "login failed")} (code=$code)")
+            // The login endpoint answered: the account itself was rejected.
+            throw ApiException(
+                "${loginBody.optString("message", "login failed")} (code=$code)",
+                refused = true,
+            )
         }
         AppConfig.lastUsername = username
         val result = loginBody.optJSONObject("result") ?: JSONObject()

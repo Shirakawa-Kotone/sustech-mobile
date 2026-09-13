@@ -12,30 +12,66 @@ import edu.sustech.mobile.tis.Semester
  *
  * Nothing in the UI signs in per service: screens call `ensureX()`, which
  * reuses a live session or silently re-authenticates with the stored
- * credentials. Expiry is therefore invisible — the same behavior the Python
- * client gets from `Authorizer.ensure()`.
+ * credentials, so expiry is invisible — the behavior the Python client gets
+ * from `Authorizer.ensure()`.
+ *
+ * [signIn] classifies the outcome instead of returning a bare boolean, because
+ * one of the services is campus-only: printing answers 403 from anywhere else,
+ * and that must never be presented as "your account is wrong".
  */
 object Session {
 
-    /** TIS's CAS entry point, same value the Python `TISAuth` uses. */
+    /** How a sign-in attempt ended. */
+    enum class Access {
+        /** At least one service accepted the account. */
+        ACCEPTED,
+
+        /** A service answered and rejected the account — the credentials are wrong. */
+        REFUSED,
+
+        /** Nothing answered: off campus, offline, or the service is down. */
+        UNREACHABLE,
+    }
+
+    /** TIS's CAS entry point, the same value the Python `TISAuth` uses. */
     private const val TIS_SERVICE = Hosts.TIS + "/cas"
 
     /**
-     * Signs in to every service with the stored account.
+     * Signs in to every service and reports the strongest signal seen.
      *
-     * Returns true when at least one service accepted it, so a campus-only
-     * service being unreachable off campus does not block the app. Credentials
-     * being *wrong* is the case where nothing accepts them.
+     * One flat rule drives the whole classification: only an explicit refusal
+     * counts as a bad account. Off-campus (printing), timeouts and 5xx replies
+     * are unreachable, so a user off campus is never told their password is
+     * wrong because printing could not be reached.
      */
-    fun signIn(): Boolean {
+    fun signIn(): Access {
         requireCredentials()
-        val print = ensurePrint()
-        val courses = ensureCourses() != null
-        return print || courses
+        val print = printAccess()
+        val courses = coursesAccess()
+        return when {
+            print == Access.ACCEPTED || courses == Access.ACCEPTED -> Access.ACCEPTED
+            print == Access.REFUSED || courses == Access.REFUSED -> Access.REFUSED
+            else -> Access.UNREACHABLE
+        }
     }
 
     /** Live print session, or a fresh one from the stored credentials. */
-    fun ensurePrint() = runCatching { App.api.check() }.isSuccess || reloginPrint()
+    fun ensurePrint(): Boolean = printAccess() == Access.ACCEPTED
+
+    /** Live TIS session, or a fresh one from the stored credentials. */
+    fun ensureCourses(): Semester? = runCatching { App.tis.currentSemester() }
+        .getOrNull()
+        ?: reloginCourses()
+
+    fun reloginCourses(): Semester? {
+        if (!Credentials.configured) return null
+        return try {
+            CasLogin.login(TIS_SERVICE, Credentials.sid, Credentials.password, xhr = true)
+            App.tis.currentSemester()
+        } catch (e: ApiException) {
+            null
+        }
+    }
 
     fun reloginPrint(): Boolean {
         if (!Credentials.configured) return false
@@ -47,16 +83,28 @@ object Session {
         }
     }
 
-    /** Live TIS session, or a fresh one from the stored credentials. */
-    fun ensureCourses(): Semester? = runCatching { App.tis.currentSemester() }.getOrNull() ?: reloginCourses()
+    // -- Per-service classification -------------------------------------------
 
-    fun reloginCourses(): Semester? {
-        if (!Credentials.configured) return null
+    private fun printAccess(): Access {
+        runCatching { App.api.check() }.onSuccess { return Access.ACCEPTED }
+        if (!Credentials.configured) return Access.REFUSED
         return try {
-            if (!CasLogin.login(TIS_SERVICE, Credentials.sid, Credentials.password, xhr = true)) return null
-            App.tis.currentSemester()
+            PmsAuth.login(Credentials.sid, Credentials.password)
+            Access.ACCEPTED
         } catch (e: ApiException) {
-            null
+            if (e.refused) Access.REFUSED else Access.UNREACHABLE
+        }
+    }
+
+    private fun coursesAccess(): Access {
+        runCatching { App.tis.currentSemester() }.onSuccess { return Access.ACCEPTED }
+        if (!Credentials.configured) return Access.REFUSED
+        return try {
+            CasLogin.login(TIS_SERVICE, Credentials.sid, Credentials.password, xhr = true)
+            App.tis.currentSemester()
+            Access.ACCEPTED
+        } catch (e: ApiException) {
+            if (e.refused) Access.REFUSED else Access.UNREACHABLE
         }
     }
 
