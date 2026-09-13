@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">南科掌上</string>
+
+    <string name="login_title">登录打印系统</string>
+    <string name="login_subtitle">联创云打印 · 需校园网</string>
+    <string name="login_cas">用学校账号登录（CAS）</string>
+    <string name="login_password">用打印系统账号登录</string>
+    <string name="login_username">学号 / 账号</string>
+    <string name="login_password_field">密码</string>
+    <string name="login_submit">登录</string>
+    <string name="login_advanced">服务器设置</string>
+    <string name="login_server_url">服务器地址</string>
+    <string name="login_server_hint">默认 https://pms.sustech.edu.cn</string>
+    <string name="login_server_reset">恢复默认</string>
+    <string name="login_server_saved">服务器地址已保存</string>
+    <string name="login_note">CAS 登录不保存密码，只保存会话 Cookie。</string>
+    <string name="cas_login_title">学校账号登录</string>
+
+    <string name="tab_stations">打印点</string>
+    <string name="tab_jobs">打印文档</string>
+    <string name="tab_scan">扫描文档</string>
+    <string name="tab_usage">使用记录</string>
+    <string name="tab_account">我的</string>
+
+    <string name="action_refresh">刷新</string>
+    <string name="action_logout">退出登录</string>
+    <string name="action_upload">上传文件</string>
+    <string name="action_delete">删除</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_prev_page">上一页</string>
+    <string name="action_next_page">下一页</string>
+    <string name="action_query">查询</string>
+
+    <string name="empty_loading">加载中…</string>
+    <string name="empty_none">暂无数据</string>
+    <string name="empty_off_campus">需要校园网：请在校园网内（或校内 VPN）使用。</string>
+    <string name="error_network">网络错误：%1$s</string>
+
+    <string name="stations_all_groups">全部打印点</string>
+    <string name="stations_count">共 %1$d 个打印点</string>
+    <string name="station_state">状态</string>
+    <string name="station_paper">纸型</string>
+    <string name="station_functions">功能</string>
+    <string name="station_device">设备号</string>
+
+    <string name="jobs_empty">没有待打印文档。上传后到打印机刷卡即可打印。</string>
+    <string name="jobs_delete_title">删除待打印文档</string>
+    <string name="jobs_delete_message">将删除「%1$s」（ID %2$d）。删除后需重新上传才能打印，且不可恢复。</string>
+    <string name="jobs_deleted">已删除：%1$s</string>
+    <string name="jobs_delete_failed">删除失败：%1$s</string>
+
+    <string name="scan_empty">没有扫描文档。</string>
+    <string name="scan_size">大小</string>
+    <string name="scan_delete_title">删除扫描文档</string>
+    <string name="scan_delete_message">将删除「%1$s」（ID %2$d）。扫描件删除后不可恢复。</string>
+
+    <string name="usage_begin">开始日期</string>
+    <string name="usage_end">结束日期</string>
+    <string name="usage_type">类型</string>
+    <string name="usage_type_print">打印</string>
+    <string name="usage_type_scan">扫描</string>
+    <string name="usage_type_copy">复印</string>
+    <string name="usage_page">第 %1$d / %2$d 页</string>
+    <string name="usage_empty">没有使用记录。</string>
+
+    <string name="account_title">账号</string>
+    <string name="account_name">姓名</string>
+    <string name="account_unknown">未知</string>
+    <string name="account_server">服务器</string>
+    <string name="account_saved_server">已保存的服务器地址</string>
+    <string name="account_session">会话状态</string>
+    <string name="account_session_valid">已登录</string>
+    <string name="account_session_invalid">未登录</string>
+
+    <string name="upload_title">云打印上传</string>
+    <string name="upload_pick">选择文件</string>
+    <string name="upload_no_file">未选择文件</string>
+    <string name="upload_color">颜色</string>
+    <string name="upload_color_bw">黑白</string>
+    <string name="upload_color_color">彩色</string>
+    <string name="upload_paper">纸张</string>
+    <string name="upload_paper_any">不指定</string>
+    <string name="upload_duplex">单双面</string>
+    <string name="upload_duplex_single">单面</string>
+    <string name="upload_duplex_short">双面短边</string>
+    <string name="upload_duplex_long">双面长边</string>
+    <string name="upload_pages">页码范围</string>
+    <string name="upload_pages_all">全部</string>
+    <string name="upload_copies">份数</string>
+    <string name="upload_submit">上传到打印队列</string>
+    <string name="upload_running">上传中…</string>
+    <string name="upload_ok">已上传：%1$s</string>
+    <string name="upload_failed">上传失败：%1$s</string>
+    <string name="upload_note">上传免费，刷卡取件时才计费。</string>
+    <string name="date_hint">YYYY-MM-DD</string>
+    <string name="upload_page_from_hint">起始页</string>
+    <string name="upload_page_to_hint">结束页</string>
+    <string name="pick_error">无法读取所选文件</string>
+    <string name="cas_loading">正在加载登录页…</string>
+    <string name="cas_failed">登录未完成：%1$s</string>
+    <string name="login_working">登录中…</string>
+    <string name="session_expired">登录已过期，请重新登录</string>
+    <string name="logout_done">已退出登录</string>
+</resources>
+
