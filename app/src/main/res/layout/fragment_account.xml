@@ -32,20 +32,28 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="@string/account_name"
+                    android:text="@string/account_identity"
                     android:textAppearance="@style/FieldLabel" />
 
                 <TextView
-                    android:id="@+id/account_name"
+                    android:id="@+id/account_identity"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/account_unknown"
                     android:textAppearance="@style/FieldValue" />
 
                 <TextView
+                    android:id="@+id/account_identity_state"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:text="@string/account_creds_missing"
+                    android:textColor="@color/ink_muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
                     android:text="@string/account_session"
                     android:textAppearance="@style/FieldLabel" />
 
@@ -57,31 +65,18 @@
                     android:textAppearance="@style/FieldValue" />
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="@string/account_tis_session"
-                    android:textAppearance="@style/FieldLabel" />
-
-                <TextView
                     android:id="@+id/account_tis_session"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/account_session_invalid"
                     android:textAppearance="@style/FieldValue" />
 
-                <TextView
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_forget"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="@string/account_server"
-                    android:textAppearance="@style/FieldLabel" />
-
-                <TextView
-                    android:id="@+id/account_server"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="@style/FieldValue" />
+                    android:layout_marginTop="12dp"
+                    android:text="@string/account_forget" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -99,7 +94,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/login_advanced"
+                    android:text="@string/account_dev_title"
                     android:textColor="@color/ink"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -108,7 +103,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:hint="@string/login_server_hint">
+                    android:hint="@string/server_hint">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/input_server"
@@ -125,12 +120,12 @@
                     android:layout_height="wrap_content"
                     android:text="@string/action_confirm" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_logout"
+                <TextView
+                    android:id="@+id/account_server"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/action_logout" />
+                    android:textColor="@color/ink_muted"
+                    android:textSize="12sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>

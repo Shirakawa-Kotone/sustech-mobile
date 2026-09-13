@@ -2,6 +2,7 @@ package edu.sustech.mobile.pms
 
 import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.AppConfig
+import edu.sustech.mobile.sso.Session
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -40,10 +41,10 @@ class PmsApi(
     // -- Endpoints the site exposes -------------------------------------------
 
     /** POST /client/Auth/Check — who is signed in. Also the session probe. */
-    fun check(): AccountInfo {
+    fun check(): AccountInfo = withRelogin {
         val body = postJson("/api/client/Auth/Check", JSONObject())
         val result = body.optJSONObject("result") ?: JSONObject()
-        return AccountInfo(
+        return@withRelogin AccountInfo(
             trueName = result.optString("szTrueName", ""),
             logonName = result.optString("szLogonName", ""),
             raw = result,
@@ -51,21 +52,21 @@ class PmsApi(
     }
 
     /** GET /client/Station/GetSrvList — the print-point dropdown. */
-    fun serverGroups(): List<ServerGroup> {
+    fun serverGroups(): List<ServerGroup> = withRelogin {
         val array = getArray("/api/client/Station/GetSrvList", mapOf("timestamp" to "0"))
-        return (0 until array.length()).map { ServerGroup.from(array.getJSONObject(it)) }
+        return@withRelogin (0 until array.length()).map { ServerGroup.from(array.getJSONObject(it)) }
     }
 
     /** GET /client/Station/GetList — every printer / copier / scanner. */
-    fun stations(): List<Station> {
+    fun stations(): List<Station> = withRelogin {
         val array = getArray("/api/client/Station/GetList", mapOf("timestamp" to "0"))
-        return (0 until array.length()).map { Station.from(array.getJSONObject(it)) }
+        return@withRelogin (0 until array.length()).map { Station.from(array.getJSONObject(it)) }
     }
 
     /** GET /client/PrintJob/Get — uploaded but not yet printed. */
-    fun printJobs(): List<PrintJob> {
+    fun printJobs(): List<PrintJob> = withRelogin {
         val array = getArray("/api/client/PrintJob/Get", mapOf("timestamp" to "0"))
-        return (0 until array.length()).map { PrintJob.from(array.getJSONObject(it)) }
+        return@withRelogin (0 until array.length()).map { PrintJob.from(array.getJSONObject(it)) }
     }
 
     /**
@@ -74,31 +75,31 @@ class PmsApi(
      * Returns null on success, or the server message on failure (the site
      * reports "already printed" as `code = -1`, not as an HTTP error).
      */
-    fun deletePrintJob(jobId: Long): String? {
+    fun deletePrintJob(jobId: Long): String? = withRelogin {
         val body = postJson(
             "/api/client/PrintJob/Del",
             JSONObject().put("dwJobId", jobId).put("dwOldJobId", jobId),
             throwOnError = false,
         )
         val code = body.optInt("code", -1)
-        return if (code == 0) null else body.optString("message", "code=$code")
+        return@withRelogin if (code == 0) null else body.optString("message", "code=$code")
     }
 
     /** GET /client/Scan/Get — scanned documents waiting for pickup. */
-    fun scanJobs(): List<ScanJob> {
+    fun scanJobs(): List<ScanJob> = withRelogin {
         val array = getArray("/api/client/Scan/Get", mapOf("timestamp" to "0"))
-        return (0 until array.length()).map { ScanJob.from(array.getJSONObject(it)) }
+        return@withRelogin (0 until array.length()).map { ScanJob.from(array.getJSONObject(it)) }
     }
 
     /** POST /client/Scan/Del — delete a scanned document. */
-    fun deleteScanJob(jobId: Long): String? {
+    fun deleteScanJob(jobId: Long): String? = withRelogin {
         val body = postJson(
             "/api/client/Scan/Del",
             JSONObject().put("dwJobId", jobId),
             throwOnError = false,
         )
         val code = body.optInt("code", -1)
-        return if (code == 0) null else body.optString("message", "code=$code")
+        return@withRelogin if (code == 0) null else body.optString("message", "code=$code")
     }
 
     /**
@@ -111,7 +112,7 @@ class PmsApi(
         type: Int,
         page: Int,
         pageSize: Int,
-    ): Pair<List<UsageRecord>, Int> {
+    ): Pair<List<UsageRecord>, Int> = withRelogin {
         val payload = JSONObject()
             .put("dwBeginDate", begin)
             .put("dwEndDate", end)
@@ -122,7 +123,7 @@ class PmsApi(
         val array = body.optJSONArray("result") ?: JSONArray()
         val rows = (0 until array.length()).map { UsageRecord.from(array.getJSONObject(it)) }
         val totalPages = body.optInt("dwTotalPage", 1).coerceAtLeast(1)
-        return rows to totalPages
+        return@withRelogin rows to totalPages
     }
 
     /**
@@ -167,6 +168,17 @@ class PmsApi(
         return json.optString("message", "").ifEmpty { "ok" }
     }
 
+    /**
+     * Runs [block], and when the failure is "the session is gone" signs in
+     * again with the stored school account and retries once. Every expiry is
+     * therefore invisible to the screen: no user-visible sign-in prompts.
+     */
+    private fun <T> withRelogin(block: () -> T): T = try {
+        block()
+    } catch (e: ApiException) {
+        if (e.signInRequired && Session.reloginPrint()) block() else throw e
+    }
+
     // -- Transport ------------------------------------------------------------
 
     private fun getArray(path: String, params: Map<String, String>): JSONArray {
@@ -180,7 +192,8 @@ class PmsApi(
             .header("Accept", "application/json, text/javascript, */*; q=0.01")
             .header("Referer", baseUrl() + "/client/new/cprintPc/")
             .build()
-        val json = parseOrNull(execute(request)) ?: throw PmsException("Non-JSON response — signed in?")
+        val json = parseOrNull(execute(request))
+            ?: throw PmsException("Non-JSON response — session gone", signInRequired = true)
         val code = json.optInt("code", -1)
         if (code != 0) throw PmsException(json.optString("message", "code=$code"))
         return json.optJSONArray("result") ?: JSONArray()
@@ -194,7 +207,8 @@ class PmsApi(
             .header("Accept", "application/json, text/javascript, */*; q=0.01")
             .header("Referer", baseUrl() + "/client/new/cprintPc/")
             .build()
-        val json = parseOrNull(execute(request)) ?: throw PmsException("Non-JSON response — signed in?")
+        val json = parseOrNull(execute(request))
+            ?: throw PmsException("Non-JSON response — session gone", signInRequired = true)
         if (throwOnError && json.optInt("code", -1) != 0) {
             val code = json.optInt("code", -1)
             throw PmsException(json.optString("message", "code=$code"))
@@ -208,6 +222,9 @@ class PmsApi(
                 val text = response.body?.string().orEmpty()
                 if (response.code == 403 || text.startsWith("Access forbidden")) {
                     throw PmsException("Off campus (HTTP ${response.code})", offCampus = true)
+                }
+                if (response.code == 401) {
+                    throw PmsException("PMS session expired", signInRequired = true)
                 }
                 if (response.code == 413) {
                     throw PmsException("File too large (HTTP 413)")

@@ -2,39 +2,28 @@
 <resources>
     <string name="app_name">SUSTech Mobile</string>
 
-    <!-- Sign in -->
+    <!-- Sign in (the only place credentials are ever entered) -->
     <string name="login_title">Sign in</string>
-    <string name="login_subtitle">SUSTech services on your phone</string>
-    <string name="login_cas">Sign in with school account (CAS)</string>
-    <string name="login_password">Print-system account</string>
-    <string name="login_username">Student ID / account</string>
+    <string name="login_subtitle">One school account for every service</string>
+    <string name="login_username">Student ID</string>
     <string name="login_password_field">Password</string>
     <string name="login_submit">Sign in</string>
-    <string name="login_advanced">Server settings</string>
-    <string name="login_server_url">Server URL</string>
-    <string name="login_server_hint">Default https://pms.sustech.edu.cn</string>
-    <string name="login_server_reset">Reset to default</string>
-    <string name="login_server_saved">Server URL saved</string>
-    <string name="login_note">Printing and TIS use the school sign-in page. Nothing but the session cookie is stored — no password.</string>
-    <string name="login_working">Signing in…</string>
-    <string name="service_login_title">Sign in — %1$s</string>
-    <string name="cas_loading">Loading sign-in page…</string>
-    <string name="cas_failed">Sign-in incomplete: %1$s</string>
-    <string name="session_expired">Session expired — sign in again</string>
-    <string name="logout_done">Signed out</string>
+    <string name="login_note">Your account is stored on this phone only and reused for every service, so this is the one time you sign in. Sessions renew themselves; nothing is sent anywhere except the university\'s own sign-in.</string>
+    <string name="login_missing_fields">Enter your student ID and password.</string>
+    <string name="login_rejected">Sign-in was refused — check your student ID and password.</string>
+    <string name="session_expired">Session expired — sign in again.</string>
 
     <!-- Shell -->
     <string name="tab_today">Today</string>
     <string name="tab_services">Services</string>
     <string name="tab_account">Account</string>
     <string name="tab_print">Print</string>
-    <string name="tab_courses">Courses</string>
     <string name="tab_stations">Stations</string>
     <string name="tab_scans">Scans</string>
     <string name="tab_usage">Usage</string>
     <string name="tab_week">This week</string>
     <string name="action_refresh">Refresh</string>
-    <string name="action_logout">Sign out</string>
+    <string name="action_forget">Forget account</string>
     <string name="action_sign_in">Sign in</string>
     <string name="action_upload">Upload file</string>
     <string name="action_delete">Delete</string>
@@ -47,11 +36,9 @@
     <string name="empty_none">Nothing here yet</string>
     <string name="empty_off_campus">Campus network required — connect to the campus network or campus VPN.</string>
     <string name="error_network">Network error: %1$s</string>
-    <string name="error_sign_in_required">Sign in to %1$s to see this.</string>
 
     <!-- Services catalog -->
     <string name="services_available">Available</string>
-    <string name="services_planned">Planned</string>
     <string name="services_not_implemented">Not implemented yet</string>
     <string name="services_planned_note">These SUSTech services are not in the app yet. The service list is the shared roadmap with sustech_survival (Python) and sustech-cli (TypeScript).</string>
     <string name="service_pms">Printing</string>
@@ -90,16 +77,15 @@
     <string name="today_aqi">AQI</string>
     <string name="today_next_exam">Next exam</string>
     <string name="today_none">—</string>
-    <string name="today_sign_in_hint">Sign in to Courses &amp; grades to fill this in.</string>
+    <string name="today_sign_in_hint">Sign in to fill this in.</string>
 
-    <!-- TIS -->
+    <!-- Courses & grades -->
     <string name="tis_week">This week</string>
     <string name="tis_courses">Courses</string>
     <string name="tis_grades">Grades</string>
     <string name="tis_exams">Exams</string>
     <string name="tis_semester">%1$s · %2$s</string>
     <string name="tis_periods">Period %1$d–%2$d</string>
-    <string name="tis_period_single">Period %1$d</string>
     <string name="tis_weeks_range">Weeks %1$s</string>
     <string name="tis_week_empty">No classes this week.</string>
     <string name="tis_courses_empty">No enrolled courses this term.</string>
@@ -107,10 +93,9 @@
     <string name="tis_gpa">GPA %1$s · %2$s credits</string>
     <string name="tis_credits">%1$s credits</string>
     <string name="tis_score">Score %1$s</string>
-    <string name="tis_terms_summary">%1$d courses</string>
     <string name="tis_exams_empty">No exams scheduled yet.</string>
     <string name="tis_exam_seat">Seat %1$s</string>
-    <string name="tis_not_signed_in">Not signed in to TIS.</string>
+    <string name="tis_not_signed_in">Not signed in.</string>
     <string name="weekday_mon">Mon</string>
     <string name="weekday_tue">Tue</string>
     <string name="weekday_wed">Wed</string>
@@ -119,7 +104,7 @@
     <string name="weekday_sat">Sat</string>
     <string name="weekday_sun">Sun</string>
 
-    <!-- PMS -->
+    <!-- Printing -->
     <string name="stations_all_groups">All stations</string>
     <string name="stations_count">%1$d stations</string>
     <string name="station_state_idle">Idle</string>
@@ -181,11 +166,20 @@
 
     <!-- Account -->
     <string name="account_title">Account</string>
-    <string name="account_name">Print account</string>
-    <string name="account_tis_session">TIS session</string>
-    <string name="account_server">Print server</string>
+    <string name="account_identity">School account</string>
+    <string name="account_identity_state">Saved</string>
+    <string name="account_creds_saved">Saved on this phone</string>
+    <string name="account_creds_missing">Not set</string>
+    <string name="account_forget">Forget account</string>
+    <string name="account_forgotten">Account forgotten</string>
+    <string name="account_unknown">—</string>
     <string name="account_session">Session</string>
+    <string name="account_print_session">Printing</string>
+    <string name="account_tis_session">Courses &amp; grades</string>
+    <string name="account_server">Server</string>
+    <string name="account_dev_title">Test server</string>
+    <string name="server_hint">Default https://pms.sustech.edu.cn</string>
+    <string name="server_saved">Server saved</string>
     <string name="account_session_valid">Signed in</string>
     <string name="account_session_invalid">Signed out</string>
-    <string name="account_unknown">unknown</string>
 </resources>

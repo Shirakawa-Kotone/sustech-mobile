@@ -11,6 +11,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import edu.sustech.mobile.R
 import edu.sustech.mobile.core.App
+import edu.sustech.mobile.core.Credentials
 
 /**
  * The shell: three fixed destinations (Today, Services, Account).
@@ -62,9 +63,12 @@ class MainActivity : AppCompatActivity() {
             (supportFragmentManager.findFragmentById(R.id.container) as? Refreshable)?.refresh()
             true
         }
-        R.id.action_logout -> {
+        R.id.action_forget -> {
+            // Forget the account AND every session: with credentials stored,
+            // clearing cookies alone would just sign back in on the next launch.
+            Credentials.clear()
             App.cookies.clear()
-            Toast.makeText(this, R.string.logout_done, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.account_forgotten, Toast.LENGTH_SHORT).show()
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             true

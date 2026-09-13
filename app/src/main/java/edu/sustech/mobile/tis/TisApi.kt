@@ -2,6 +2,8 @@ package edu.sustech.mobile.tis
 
 import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.Hosts
+import edu.sustech.mobile.sso.CasLogin
+import edu.sustech.mobile.sso.Session
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -27,13 +29,13 @@ class TisApi(private val http: OkHttpClient) {
     // -- Reads ----------------------------------------------------------------
 
     /** POST /component/querydangqianxnxq — the active term. */
-    fun currentSemester(): Semester {
+    fun currentSemester(): Semester = withRelogin {
         val body = postForm("/component/querydangqianxnxq", emptyMap())
         val json = parse(body) ?: throw ApiException("TIS returned a non-JSON semester", signInRequired = true)
         if (!json.has("XN") || !json.has("XQ")) {
             throw ApiException("TIS did not report the current semester", signInRequired = true)
         }
-        return Semester.from(json)
+        return@withRelogin Semester.from(json)
     }
 
     /**
@@ -42,27 +44,27 @@ class TisApi(private val http: OkHttpClient) {
      * Answers with a bare number while a term is running; an empty body means
      * the term has not started, and an error page means the session is stale.
      */
-    fun currentWeek(): Int? {
+    fun currentWeek(): Int? = withRelogin {
         val body = postForm("/component/querydangqianzc", emptyMap()).trim()
-        return body.toIntOrNull()
+        return@withRelogin body.toIntOrNull()
     }
 
     /** POST /xszykb/queryxszykbzhou — personal timetable for one week. */
-    fun weekSchedule(week: Int, semester: Semester = currentSemester()): List<ClassEntry> {
+    fun weekSchedule(week: Int, semester: Semester = currentSemester()): List<ClassEntry> = withRelogin {
         val body = postForm(
             "/xszykb/queryxszykbzhou",
             mapOf("xn" to semester.year, "xq" to semester.term, "zc" to week.toString()),
         )
-        return parseEntries(body)
+        return@withRelogin parseEntries(body)
     }
 
     /** POST /xszykb/queryxszykbzong — the whole term, every meeting. */
-    fun semesterSchedule(semester: Semester = currentSemester()): List<ClassEntry> {
+    fun semesterSchedule(semester: Semester = currentSemester()): List<ClassEntry> = withRelogin {
         val body = postForm(
             "/xszykb/queryxszykbzong",
             mapOf("xn" to semester.year, "xq" to semester.term),
         )
-        return parseEntries(body)
+        return@withRelogin parseEntries(body)
     }
 
     /**
@@ -71,7 +73,7 @@ class TisApi(private val http: OkHttpClient) {
      * `pageSize` is 500 because the endpoint pages, and one page is enough for
      * a whole degree; the Python client does the same.
      */
-    fun grades(): List<GradeRecord> {
+    fun grades(): List<GradeRecord> = withRelogin {
         val payload = JSONObject()
             .put("xn", JSONObject.NULL)
             .put("xq", JSONObject.NULL)
@@ -83,20 +85,34 @@ class TisApi(private val http: OkHttpClient) {
         val body = postJson("/cjgl/grcjcx/grcjcx", payload)
         val json = parse(body) ?: throw ApiException("TIS returned a non-JSON grade list", signInRequired = true)
         val rows = json.optJSONObject("content")?.optJSONArray("list") ?: JSONArray()
-        return (0 until rows.length()).map { GradeRecord.from(rows.getJSONObject(it)) }
+        return@withRelogin (0 until rows.length()).map { GradeRecord.from(rows.getJSONObject(it)) }
     }
 
     /** POST /component/queryKsxxByXs — student exam schedule (empty until published). */
-    fun exams(): List<ExamRecord> {
+    fun exams(): List<ExamRecord> = withRelogin {
         val body = postJson("/component/queryKsxxByXs", JSONObject())
         val json = parseArray(body) ?: throw ApiException("TIS returned no exam list", signInRequired = true)
-        return (0 until json.length())
+        return@withRelogin (0 until json.length())
             .map { ExamRecord.from(json.getJSONObject(it)) }
             .sortedBy { it.sortKey }
     }
 
     /** True when the stored session is still good (cheap probe). */
     fun isSignedIn(): Boolean = runCatching { currentSemester() }.isSuccess
+
+    /**
+     * Retries once after a silent CAS re-login when TIS says the session is
+     * gone — the app never asks the user to sign in again.
+     *
+     * The desktop user agent matters here: TIS refuses the mobile web UI, and
+     * the native client identifies as the same desktop client the Python
+     * authorizer does.
+     */
+    private fun <T> withRelogin(block: () -> T): T = try {
+        block()
+    } catch (e: ApiException) {
+        if (e.signInRequired && Session.reloginCourses() != null) block() else throw e
+    }
 
     // -- Transport ------------------------------------------------------------
 
@@ -113,6 +129,7 @@ class TisApi(private val http: OkHttpClient) {
         val request = Request.Builder()
             .url(Hosts.TIS + path)
             .post(body)
+            .header("User-Agent", CasLogin.UA)
             .header("X-Requested-With", "XMLHttpRequest")
             .header("Accept", "application/json, text/javascript, */*; q=0.01")
             .header("Referer", Hosts.TIS + "/")

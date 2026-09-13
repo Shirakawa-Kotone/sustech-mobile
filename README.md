@@ -18,9 +18,9 @@ The app icon and the in-app mark are the hand-drawn torch from
 `sustech_survival/resources/logo.svg` — the same artwork the Electron app and
 the web UI use — recoloured from its orange `#ed7005` to the wordmark green
 `#004851` so the phone icon matches the lockup. It lives in
-`res/drawable/ic_torch.xml` (adaptive icon foreground, mark inside the launcher
-safe zone) and `res/drawable/ic_torch_mark.xml` (fills the canvas, used on the
-sign-in screen), generated straight from the source SVG path data.
+`res/drawable/ic_torch.xml` (adaptive icon foreground) and
+`res/drawable/ic_torch_mark.xml` (used on the sign-in screen), both generated
+from the source SVG path data, both scaled to 67% of the mark's original size.
 
 ## The shell
 
@@ -48,21 +48,37 @@ the credit-weighted GPA, and the exam schedule. Course selection, bidding and
 evaluation are **not** in the app — they are irreversible writes and stay on the
 website.
 
-## Sign-in
+## Sign-in — one account, once
 
-Each service is CAS-fronted on its own subdomain, so a session is per host:
+There is exactly one sign-in screen and exactly one credential pair: the school
+account. It is stored on the device the first time it is entered and reused for
+every service, forever after — the same contract as `sustech_survival`'s
+`credentials.txt`.
 
-- **School sign-in page in a WebView** (`WebLoginActivity`) — the real SUSTech
-  sign-in page loads, the service sets its own session cookie, and the app lifts
-  only that cookie. No password is typed into the app or stored by it. This one
-  screen serves every service, current and future.
-- **Print-system account** (only printing has it) — the site's own flow:
-  `Auth/GetAuthToken` → RSA public key + nonce → `RSA/PKCS1Padding("password;nonce")`
-  → `Auth/Login`. Identical to what the page's `JSEncrypt` does, so the server
-  cannot tell the difference.
+- **No per-service sign-in.** Screens call `Session.ensureX()`; a live session is
+  reused, an expired one is re-established silently from the stored account.
+- **No browser sign-in.** There is no WebView in the app. TIS refuses mobile
+  browser sign-ins, and a native client has no reason to show someone else's
+  login page. CAS is implemented natively in `sso/CasLogin.kt`, ported from the
+  Python `CASAuthorizer`: scrape the `execution` token → POST
+  `username/password/execution/_eventId=submit` → follow the ticket →
+  cookie exchange, with the desktop user agent and `X-Requested-With` header TIS
+  expects.
+- **Printing** additionally accepts the print system's own RSA flow
+  (`Auth/GetAuthToken` → `Auth/PublicKey` → `RSA/PKCS1Padding("password;nonce")` →
+  `Auth/Login`), which the app runs with the same account.
+- **Expiry is invisible.** Every call that comes back "session gone" re-runs the
+  matching sign-in with the stored account and retries itself once
+  (`PmsApi`/`TisApi` `withRelogin`), so nothing ever asks the user to sign in
+  again — only a stored account the server *refuses* returns to the login screen.
 
-Cookies persist in `SharedPreferences` (`sustech_mobile_session`), host-scoped,
-so a printing session and a TIS session coexist and survive an app restart.
+The account lives in the app's private `SharedPreferences`
+(`sustech_mobile_creds`), with `allowBackup=false` so it stays out of cloud
+backups. It is never logged, never rendered, and never sent anywhere except the
+university's own sign-in endpoints. Session cookies live separately in
+`sustech_mobile_session`, host-scoped, so the printing and courses sessions
+coexist and survive a restart. The Account tab shows the stored account and has
+**Forget account** (clears both).
 
 ## Campus network
 
@@ -104,14 +120,15 @@ counts, writing screenshots to `tools/screenshots/`:
 | Scenario | What it proves |
 |---|---|
 | `shell` | Today renders, the catalog lists both services and the planned ones, Account shows per-service sessions |
-| `pms-smoke` | sign-in, queue with upload button, delete removes a row, stations / scans / usage all populate |
+| `pms-smoke` | the app signs in by itself, queue with upload button, delete removes a row, stations / scans / usage all populate |
 | `pms-upload` | file picker → upload → the file reappears in the queue |
 | `tis-live` | the real TIS: week header, classes, courses, grades (needs an injected session) |
 
-`tools/inject_session.py --tis` copies a live TIS session from the Python
-client's authorizer into the app, so the TIS screens can be verified against the
-real service without automating a password entry on the device. Cookie values
-are never printed.
+`tools/inject_session.py --creds` copies the school account in (from the same
+credentials file the Python client uses — the value is never printed). The app
+then performs its own CAS and RSA sign-ins, so what gets verified is the app's
+auto-login, not a session handed to it. `--tis` / `--pms-session` exist only for
+isolating a sign-in problem.
 
 Cleartext HTTP is allowed only for the emulator host alias and localhost
 (`res/xml/network_security_config.xml`); every other host, including PMS and

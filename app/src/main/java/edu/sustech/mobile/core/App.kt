@@ -24,6 +24,7 @@ object App {
     fun init(context: Context) {
         appContext = context.applicationContext
         AppConfig.init(appContext)
+        Credentials.init(appContext)
     }
 
     val cookies: CookieStore by lazy { CookieStore(appContext) }
@@ -36,6 +37,12 @@ object App {
             .writeTimeout(120, TimeUnit.SECONDS)
             .build()
     }
+
+    /**
+     * Client that does not follow redirects: the CAS handshake hands the
+     * ticket back in a `Location` header, and step 4 needs that value.
+     */
+    val httpNoRedirect: OkHttpClient by lazy { http.newBuilder().followRedirects(false).build() }
 
     val api: PmsApi by lazy { PmsApi(http) { AppConfig.baseUrl } }
 

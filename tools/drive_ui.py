@@ -26,6 +26,9 @@ import time
 import xml.etree.ElementTree as ET
 
 PKG = "edu.sustech.mobile"
+# Dumps live outside /sdcard: a dump file shows up in the file picker's
+# "Recent" list and pollutes the very screen the harness is driving.
+DUMP_PATH = "/data/local/tmp/sustech_ui.xml"
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screenshots")
 
 
@@ -76,8 +79,8 @@ class Ui:
 
     def tree(self) -> ET.Element:
         for _ in range(5):
-            self.shell("uiautomator", "dump", "/sdcard/ui.xml")
-            xml = self.shell("cat", "/sdcard/ui.xml")
+            self.shell("uiautomator", "dump", DUMP_PATH)
+            xml = self.shell("cat", DUMP_PATH)
             if xml.strip().startswith("<"):
                 return ET.fromstring(xml)
             time.sleep(1)
@@ -154,6 +157,14 @@ class Ui:
             time.sleep(2)
         return count
 
+    def text_present(self, needle: str) -> bool:
+        return any(needle.lower() in text.lower() for text in self.texts())
+
+    def type_text(self, value: str) -> None:
+        """Type into whatever is focused (a picker search box, say)."""
+        self.shell("input", "text", value.replace(" ", "%s"))
+        time.sleep(1.5)
+
     def texts(self) -> list[str]:
         return [node.get("text") or "" for node in self.tree().iter("node") if node.get("text")]
 
@@ -192,40 +203,42 @@ class Ui:
 
 
 def sign_in(ui: Ui, user: str, password: str) -> None:
-    """Fill and submit the print sign-in screen — it must be showing."""
+    """Fill and submit the sign-in screen — it must be showing."""
     ui.type_into("input_username", user)
     ui.type_into("input_password", password)
-    ui.tap(rid="btn_login", settle=6)
+    ui.tap(rid="btn_login", settle=8)
 
 
 def ensure_signed_in(ui: Ui, user: str, password: str) -> None:
-    """Bring the app up with a working print session.
+    """Bring the app up signed in.
 
-    A stored session for *any* service skips the launcher, so arriving in the
-    shell does not mean the print service is signed in — check its banner and
-    sign in there when it is showing.
+    The app signs in by itself from the stored school account
+    (`tools/inject_session.py --creds`), so the login screen should not appear
+    at all. When it does, the harness either types the given credentials or
+    fails loudly — a silent empty screen is the one outcome that must not pass.
     """
     ui.dismiss_dialogs()
     ui.start_app()
     try:
         ui.find(rid="input_username", timeout=6)
-        sign_in(ui, user, password)
-        return
     except RuntimeError:
-        pass
+        return  # already signed in — the expected path
 
-    open_service(ui, "Printing")
-    try:
-        ui.find(text="Sign in", exact=True, timeout=5)
-    except RuntimeError:
-        return
-    ui.tap(text="Sign in", exact=True, settle=4)
-    try:
-        ui.find(rid="input_username", timeout=8)
-        sign_in(ui, user, password)
-    except RuntimeError:
-        pass
-    open_service(ui, "Printing")
+    # The fields are on screen while the app signs in silently from its stored
+    # account (CAS takes a few seconds), so wait for it to leave on its own
+    # before concluding that a human is needed.
+    for _ in range(25):
+        if not ui.visible("input_username") or ui.visible("bottom_nav"):
+            return
+        time.sleep(2)
+
+    if not user or not password:
+        raise RuntimeError(
+            "the app is parked on the sign-in screen: no account is configured on the "
+            "device, or the stored one was refused. "
+            "Run: python3 tools/inject_session.py --creds",
+        )
+    sign_in(ui, user, password)
     to_shell(ui)
 
 
@@ -328,6 +341,40 @@ def scenario_pms_smoke(ui: Ui, user: str, password: str) -> int:
     return report(failures)
 
 
+def pick_file(ui: Ui, filename: str) -> bool:
+    """Select [filename] in the system picker, trying the ways a user would.
+
+    The picker opens on "Recent", which does not index adb-pushed files, so:
+    walk the roots to Downloads; if that misses, use its search box. Returns
+    false only when both routes fail.
+    """
+    if ui.text_present(filename):
+        ui.tap(text=filename, settle=3)
+        return True
+
+    try:
+        ui.tap(desc="Show roots", settle=2)
+        ui.tap(text="Downloads", exact=True, settle=3)
+    except RuntimeError:
+        pass
+    if ui.text_present(filename):
+        ui.tap(text=filename, settle=3)
+        return True
+
+    try:
+        ui.shell("input", "keyevent", "4")  # leave any drawer/half state
+        time.sleep(1)
+        ui.tap(desc="Search", settle=1)
+    except RuntimeError:
+        return False
+    ui.type_text(filename)
+    time.sleep(2)
+    if ui.text_present(filename):
+        ui.tap(text=filename, settle=3)
+        return True
+    return False
+
+
 def scenario_pms_upload(ui: Ui, filename: str, user: str, password: str) -> int:
     """Pick a pushed file, upload it, confirm it lands in the queue."""
     failures = []
@@ -342,20 +389,11 @@ def scenario_pms_upload(ui: Ui, filename: str, user: str, password: str) -> int:
 
     ui.tap(rid="btn_pick", settle=4)
     ui.screenshot("41-picker-recent")
-    # The picker opens on "Recent", which does not index adb-pushed files —
-    # walk to Downloads the way a user would.
-    try:
-        ui.tap(desc="Show roots", settle=2)
-    except RuntimeError:
-        pass
-    ui.tap(text=["Downloads"], settle=3)
-    ui.screenshot("42-picker-downloads")
-    try:
-        ui.tap(text=filename, settle=3)
-    except RuntimeError:
-        failures.append(f"{filename} not visible in the file picker")
+    if not pick_file(ui, filename):
+        failures.append(f"{filename} could not be selected in the file picker")
         ui.screenshot("42b-picker-missing")
         return report(failures)
+    ui.screenshot("42-picker-selected")
 
     ui.screenshot("43-upload-ready")
     ui.tap(rid="btn_upload", settle=8)
@@ -417,8 +455,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", default="shell")
     parser.add_argument("--serial")
-    parser.add_argument("--user", default="12413021")
-    parser.add_argument("--password", default="mockpassword")
+    parser.add_argument("--user", default="", help="only used when the app has no account stored")
+    parser.add_argument("--password", default="", help="only used when the app has no account stored")
     parser.add_argument("--file", default="smoke-upload.pdf")
     args = parser.parse_args()
 

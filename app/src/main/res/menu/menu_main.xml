@@ -3,6 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item android:id="@+id/action_refresh" android:icon="@drawable/ic_refresh"
         android:title="@string/action_refresh" app:showAsAction="ifRoom" />
-    <item android:id="@+id/action_logout" android:title="@string/action_logout"
+    <item android:id="@+id/action_forget" android:title="@string/action_forget"
         app:showAsAction="never" />
 </menu>

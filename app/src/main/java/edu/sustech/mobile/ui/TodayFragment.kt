@@ -8,7 +8,6 @@ import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
 import edu.sustech.mobile.R
 import edu.sustech.mobile.core.App
-import edu.sustech.mobile.core.Hosts
 import edu.sustech.mobile.core.runIo
 import edu.sustech.mobile.tis.ClassEntry
 import edu.sustech.mobile.tis.Weekday
@@ -26,11 +25,7 @@ class TodayFragment : Fragment(R.layout.fragment_today), Refreshable {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         view.findViewById<MaterialButton>(R.id.today_sign_in).setOnClickListener {
-            startActivity(
-                Intent(requireContext(), WebLoginActivity::class.java)
-                    .putExtra(WebLoginActivity.EXTRA_URL, Hosts.TIS + "/")
-                    .putExtra(WebLoginActivity.EXTRA_COOKIE, TIS_COOKIE),
-            )
+            startActivity(Intent(requireContext(), LoginActivity::class.java))
         }
         load()
     }
@@ -127,7 +122,4 @@ class TodayFragment : Fragment(R.layout.fragment_today), Refreshable {
         if (it == Calendar.SUNDAY) 7 else it - 1
     }
 
-    private companion object {
-        const val TIS_COOKIE = "SESSION"
-    }
 }

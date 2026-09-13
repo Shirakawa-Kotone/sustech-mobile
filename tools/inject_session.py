@@ -6,9 +6,10 @@ Two jobs:
 
 1. Point the app at the mock print server (`--base-url http://10.0.2.2:8080`)
    instead of rebuilding with `-PpmsBaseUrl=...`.
-2. Copy a real TIS session into the app's cookie store (`--tis`), obtained
-   through the Python client's authorizer — so the TIS screens can be verified
-   against the live service without automating a password entry on the device.
+2. Copy the school account in (`--creds`), read from the same credentials file
+   the Python client uses. The app then performs its own CAS and RSA sign-ins —
+   which is the point: the harness never types a password into the UI, and what
+   gets verified is the app's own auto-login, not a session handed to it.
 
 The app stores cookies as JSON in `shared_prefs/sustech_mobile_session.xml`
 (key `cookies`), which is exactly what this writes. Cookie *values* are never
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import xml.sax.saxutils as sax
@@ -29,6 +31,14 @@ import xml.sax.saxutils as sax
 PKG = "edu.sustech.mobile"
 PREFS_SETTINGS = "shared_prefs/sustech_mobile.xml"
 PREFS_SESSION = "shared_prefs/sustech_mobile_session.xml"
+PREFS_CREDS = "shared_prefs/sustech_mobile_creds.xml"
+
+# Where the Python client keeps the same account. One cred, everywhere.
+CREDENTIAL_PATHS = [
+    os.environ.get("SUSTECH_CREDENTIALS", ""),
+    os.path.expanduser("~/.sustech_survival/credentials.txt"),
+    os.path.expanduser("~/.config/sustech-survival/credentials.txt"),
+]
 
 
 def adb(args: list[str], check: bool = True) -> str:
@@ -57,6 +67,19 @@ def prefs_xml(entries: dict[str, str]) -> str:
     return (
         "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
         "<map>\n" + body + "</map>\n"
+    )
+
+
+def read_credentials() -> tuple[str, str]:
+    """The same sid:password the Python client uses — never printed."""
+    for candidate in CREDENTIAL_PATHS:
+        if candidate and os.path.exists(candidate):
+            line = open(candidate, encoding="utf-8").read().strip()
+            if ":" in line:
+                sid, password = line.split(":", 1)
+                return sid.strip(), password
+    raise SystemExit(
+        "no credentials file found (looked at " + ", ".join(p for p in CREDENTIAL_PATHS if p) + ")",
     )
 
 
@@ -155,9 +178,14 @@ def main() -> int:
     parser.add_argument(
         "--mock",
         action="store_true",
-        help="point the app at tools/mock_pms.py and copy in a print session",
+        help="point the app at tools/mock_pms.py as seen from an emulator",
     )
-    parser.add_argument("--tis", action="store_true", help="copy a live TIS session in")
+    parser.add_argument("--pms-session", action="store_true",
+                        help="copy a print session from the mock (debugging only)")
+    parser.add_argument("--creds", action="store_true",
+                        help="copy the school account in, so the app signs in by itself")
+    parser.add_argument("--tis", action="store_true",
+                        help="copy a live TIS session in (debugging only; --creds is the real path)")
     parser.add_argument("--serial")
     args = parser.parse_args()
 
@@ -181,9 +209,13 @@ def main() -> int:
     if base_url:
         push_prefs(PREFS_SETTINGS, prefs_xml({"base_url": base_url}))
 
-    if args.mock:
-        print_prefs_session = {"cookies": json.dumps(mock_print_cookies(), ensure_ascii=False)}
-        push_prefs(PREFS_SESSION, prefs_xml(print_prefs_session))
+    if args.creds:
+        sid, password = read_credentials()
+        push_prefs(PREFS_CREDS, prefs_xml({"sid": sid, "password": password}))
+        print(f"credentials injected for {sid}")
+
+    if args.pms_session:
+        push_prefs(PREFS_SESSION, prefs_xml({"cookies": json.dumps(mock_print_cookies(), ensure_ascii=False)}))
         print("print session injected from the mock")
 
     if args.tis:
@@ -195,7 +227,7 @@ def main() -> int:
         push_prefs(PREFS_SESSION, prefs_xml({"cookies": json.dumps(merged, ensure_ascii=False)}))
         print("TIS cookies injected:", ", ".join(c["name"] for c in cookies))
 
-    if not args.base_url and not args.tis and not args.mock:
+    if not (args.base_url or args.tis or args.mock or args.creds or args.pms_session):
         parser.print_help()
         return 2
     return 0

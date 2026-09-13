@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0 — 2026-09-13
+
+- **Credentials-only sign-in: one account, entered once.** The app stores the
+  school account on first use and reuses it for every service; sessions renew
+  themselves silently. Approval: user directive — one cred, auto-login forever,
+  like the Python client.
+- **The browser sign-in is gone.** `WebLoginActivity` and its layout are
+  deleted, and no screen opens a WebView. TIS refuses mobile browser sign-ins,
+  and the native client needs no browser, so CAS is now implemented directly in
+  `sso/CasLogin.kt` (execution token → credential POST → ticket → cookie
+  exchange, desktop user agent + XHR header) — approach adopted from
+  `sustech_survival`'s `CASAuthorizer`.
+- **Invisible expiry.** `PmsApi` and `TisApi` retry a call once after
+  re-authenticating from the stored account (`withRelogin`), so an expired
+  session never surfaces as a prompt.
+- **The sign-in screen mentions no service.** It asks for a student ID and a
+  password, says the account is stored on the phone and reused, and nothing
+  else; the per-service copy and the print-server field moved out.
+- Account tab reworked around the stored account: identity, per-service session
+  state, **Forget account** (credentials + sessions), and the test-server
+  override.
+- Harness: `inject_session.py --creds` copies the school account in (never
+  printed) so the app signs in by itself; `drive_ui.py` waits for that silent
+  sign-in instead of treating "the login screen is up" as "unconfigured".
+- Icon: the torch mark is scaled to 67% of its previous size, in both the
+  launcher icon and the sign-in mark. Approval: user request.
+
 ## 0.2.0 — 2026-09-13
 
 - **Multi-service shell.** The app is no longer a print client: a service

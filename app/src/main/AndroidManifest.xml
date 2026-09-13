@@ -33,11 +33,6 @@
             android:label="@string/app_name" />
 
         <activity
-            android:name=".ui.WebLoginActivity"
-            android:exported="false"
-            android:label="@string/action_sign_in" />
-
-        <activity
             android:name=".ui.pms.UploadActivity"
             android:exported="false"
             android:label="@string/upload_title" />
