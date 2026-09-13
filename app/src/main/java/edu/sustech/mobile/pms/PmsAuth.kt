@@ -1,6 +1,7 @@
 package edu.sustech.mobile.pms
 
 import android.util.Base64
+import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.core.AppConfig
 import okhttp3.MediaType.Companion.toMediaType
@@ -38,19 +39,19 @@ object PmsAuth {
 
         val tokenBody = post(base, "/api/client/Auth/GetAuthToken", JSONObject())
         if (tokenBody.optInt("code", -1) != 0) {
-            throw PmsException(tokenBody.optString("message", "GetAuthToken failed"))
+            throw ApiException(tokenBody.optString("message", "GetAuthToken failed"))
         }
         val token = tokenBody.optString("szToken", "")
-        if (token.isEmpty()) throw PmsException("GetAuthToken returned no szToken")
+        if (token.isEmpty()) throw ApiException("GetAuthToken returned no szToken")
 
         val keyBody = get(base, "/api/client/Auth/PublicKey")
         if (keyBody.optInt("code", -1) != 0) {
-            throw PmsException(keyBody.optString("message", "PublicKey failed"))
+            throw ApiException(keyBody.optString("message", "PublicKey failed"))
         }
         val keyResult = keyBody.optJSONObject("result") ?: JSONObject()
         val publicKey = keyResult.optString("publicKey", "")
         val nonce = keyResult.optString("nonceStr", "")
-        if (publicKey.isEmpty()) throw PmsException("PublicKey returned no key")
+        if (publicKey.isEmpty()) throw ApiException("PublicKey returned no key")
 
         val loginBody = post(
             base,
@@ -62,7 +63,7 @@ object PmsAuth {
         )
         val code = loginBody.optInt("code", -1)
         if (code != 0) {
-            throw PmsException("${loginBody.optString("message", "login failed")} (code=$code)")
+            throw ApiException("${loginBody.optString("message", "login failed")} (code=$code)")
         }
         AppConfig.lastUsername = username
         val result = loginBody.optJSONObject("result") ?: JSONObject()
@@ -94,12 +95,12 @@ object PmsAuth {
     private fun send(request: Request): JSONObject = App.http.newCall(request).execute().use { response ->
         val text = response.body?.string().orEmpty()
         if (response.code == 403 || text.startsWith("Access forbidden")) {
-            throw PmsException("Off campus (HTTP ${response.code})", offCampus = true)
+            throw ApiException("Off campus (HTTP ${response.code})", offCampus = true)
         }
         try {
             JSONObject(text)
         } catch (_: Exception) {
-            throw PmsException("Non-JSON response: HTTP ${response.code}")
+            throw ApiException("Non-JSON response: HTTP ${response.code}")
         }
     }
 

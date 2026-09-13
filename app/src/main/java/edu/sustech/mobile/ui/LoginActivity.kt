@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import edu.sustech.mobile.R
+import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.core.AppConfig
 import edu.sustech.mobile.core.friendly
@@ -18,12 +19,13 @@ import edu.sustech.mobile.core.runIo
 import edu.sustech.mobile.pms.PmsAuth
 
 /**
- * Entry point. Offers the two sign-in paths the website has: the CAS
- * WebView (primary — no password stored) and the print-system account.
+ * Sign-in for the print service, which is the one service with a second path:
+ * besides the school sign-in page it also accepts its own RSA-encrypted
+ * account login. Every other service uses [WebLoginActivity] directly.
  */
 class LoginActivity : AppCompatActivity() {
 
-    private val casLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    private val webLogin = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) openMain()
     }
 
@@ -41,7 +43,11 @@ class LoginActivity : AppCompatActivity() {
         inputUsername.setText(AppConfig.lastUsername)
 
         findViewById<MaterialButton>(R.id.btn_cas).setOnClickListener {
-            casLauncher.launch(Intent(this, CasLoginActivity::class.java))
+            webLogin.launch(
+                Intent(this, WebLoginActivity::class.java)
+                    .putExtra(WebLoginActivity.EXTRA_URL, AppConfig.baseUrl + PMS_PRINT_PAGE)
+                    .putExtra(WebLoginActivity.EXTRA_COOKIE, PMS_COOKIE),
+            )
         }
 
         findViewById<TextView>(R.id.advanced_toggle).setOnClickListener {
@@ -81,12 +87,19 @@ class LoginActivity : AppCompatActivity() {
             )
         }
 
-        // A stored cookie means a previous session — reuse it when it still works.
+        // A stored cookie means a previous session. Any service counts — being
+        // signed in to TIS but not to printing should not trap the user here.
         if (!App.cookies.isEmpty()) {
             runIo(
-                block = { App.api.check() },
+                block = { App.api.check(); true },
                 onOk = { openMain() },
-                onErr = { /* stale session: stay on the login screen */ },
+                onErr = {
+                    runIo(
+                        block = { App.tis.currentSemester(); true },
+                        onOk = { openMain() },
+                        onErr = { if (it !is ApiException) App.toast(it.message.orEmpty()) },
+                    )
+                },
             )
         }
     }
@@ -94,5 +107,10 @@ class LoginActivity : AppCompatActivity() {
     private fun openMain() {
         startActivity(Intent(this, MainActivity::class.java))
         finish()
+    }
+
+    private companion object {
+        const val PMS_PRINT_PAGE = "/client/new/cprintPc/"
+        const val PMS_COOKIE = "OSESSIONID"
     }
 }

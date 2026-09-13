@@ -1,4 +1,4 @@
-package edu.sustech.mobile.ui
+package edu.sustech.mobile.ui.pms
 
 import android.view.View
 import android.widget.ImageButton
@@ -8,9 +8,10 @@ import edu.sustech.mobile.R
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.core.runIo
 import edu.sustech.mobile.pms.ScanJob
+import edu.sustech.mobile.ui.ListFragment
 
-/** 扫描文档 — scans waiting for pickup, with per-document delete. */
-class ScanFragment : PmsListFragment<ScanJob>(R.layout.fragment_list) {
+/** Scans — documents waiting for pickup, with per-document delete. */
+class ScanFragment : ListFragment<ScanJob>(R.layout.fragment_list) {
 
     override fun rowLayout() = R.layout.item_scan_job
 
@@ -21,7 +22,7 @@ class ScanFragment : PmsListFragment<ScanJob>(R.layout.fragment_list) {
     override fun bindRow(view: View, item: ScanJob, position: Int) {
         view.findViewById<TextView>(R.id.scan_name).text = item.fileName
         view.findViewById<TextView>(R.id.scan_meta).text =
-            "ID ${item.jobId} · ${getString(R.string.scan_size)} ${item.fileSizeText} · ${item.submittedAt}"
+            getString(R.string.scan_meta, item.jobId, item.fileSizeText, item.submittedAt)
         view.findViewById<ImageButton>(R.id.scan_delete).setOnClickListener { confirmDelete(item) }
     }
 
@@ -38,12 +39,10 @@ class ScanFragment : PmsListFragment<ScanJob>(R.layout.fragment_list) {
         runIo(
             block = { App.api.deleteScanJob(job.jobId) },
             onOk = { serverMessage ->
-                val message = if (serverMessage == null) {
-                    getString(R.string.jobs_deleted, job.fileName)
-                } else {
-                    getString(R.string.jobs_delete_failed, serverMessage)
-                }
-                android.widget.Toast.makeText(requireContext(), message, android.widget.Toast.LENGTH_LONG).show()
+                App.toast(
+                    if (serverMessage == null) getString(R.string.jobs_deleted, job.fileName)
+                    else getString(R.string.jobs_delete_failed, serverMessage),
+                )
                 load()
             },
             onErr = { error -> showError(error) },

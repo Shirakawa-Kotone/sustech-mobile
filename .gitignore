@@ -6,6 +6,9 @@ local.properties
 *.aab
 captures/
 tools/screenshots/
+
+# Live captures (real grades, real timetable) — never commit these.
+tools/fixtures/
 .externalNativeBuild/
 .cxx/
 

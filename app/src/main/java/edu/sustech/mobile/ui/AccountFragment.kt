@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import edu.sustech.mobile.R
@@ -13,11 +14,17 @@ import edu.sustech.mobile.core.AppConfig
 import edu.sustech.mobile.core.friendly
 import edu.sustech.mobile.core.runIo
 
-/** 我的 — who is signed in, which server is used, and the sign-out button. */
-class AccountFragment : androidx.fragment.app.Fragment(R.layout.fragment_account), Refreshable {
+/**
+ * Account tab: per-service session state plus the print server override.
+ *
+ * Sessions are per host, so "signed in" is answered per service — one service
+ * being signed out says nothing about the others.
+ */
+class AccountFragment : Fragment(R.layout.fragment_account), Refreshable {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
         val server = view.findViewById<TextInputEditText>(R.id.input_server)
         server.setText(AppConfig.baseUrl)
         view.findViewById<TextView>(R.id.account_server).text = AppConfig.baseUrl
@@ -41,21 +48,30 @@ class AccountFragment : androidx.fragment.app.Fragment(R.layout.fragment_account
 
     private fun load() {
         val name = view?.findViewById<TextView>(R.id.account_name)
-        val session = view?.findViewById<TextView>(R.id.account_session)
-        val raw = view?.findViewById<TextView>(R.id.account_raw)
-        session?.setText(R.string.account_session_invalid)
+        val printSession = view?.findViewById<TextView>(R.id.account_print_session)
+        val tisSession = view?.findViewById<TextView>(R.id.account_tis_session)
+
         runIo(
             block = { App.api.check() },
             onOk = { account ->
                 name?.text = account.trueName.ifEmpty { getString(R.string.account_unknown) }
-                session?.setText(R.string.account_session_valid)
-                raw?.text = account.raw.toString()
+                printSession?.setText(R.string.account_session_valid)
             },
             onErr = { error ->
                 name?.text = getString(R.string.account_unknown)
-                session?.setText(R.string.account_session_invalid)
-                raw?.text = error.friendly(requireContext())
+                printSession?.text = error.friendly(requireContext())
             },
+        )
+        runIo(
+            block = { App.tis.currentSemester() },
+            onOk = { semester ->
+                tisSession?.text = getString(
+                    R.string.tis_semester,
+                    semester.labelEn.ifEmpty { semester.label },
+                    getString(R.string.account_session_valid),
+                )
+            },
+            onErr = { tisSession?.setText(R.string.account_session_invalid) },
         )
     }
 }

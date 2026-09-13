@@ -26,12 +26,6 @@ object Duplex {
     const val SINGLE = 1
     const val SHORT_EDGE = 2
     const val LONG_EDGE = 3
-
-    fun label(code: Int): String = when (code) {
-        SHORT_EDGE -> "双面短边"
-        LONG_EDGE -> "双面长边"
-        else -> "单面"
-    }
 }
 
 object ReportType {
@@ -46,6 +40,12 @@ object DeviceProperty {
     const val SCAN = 4
     const val COLOR = 8
 }
+
+/**
+ * Derived printer state. Kept as an enum rather than a string so no UI copy
+ * lives in the wire layer — the screen decides how to say it.
+ */
+enum class StationState { IDLE, BUSY, FAULT, NOT_OPEN }
 
 // -- Records ------------------------------------------------------------------
 
@@ -73,25 +73,21 @@ data class Station(
     val isIdle: Boolean get() = status and 1 != 0
     val isBusy: Boolean get() = status and 2 != 0
 
-    /** Mirrors printDev.js `backState`: 空闲 / 忙碌 / 不可用 / 未开放. */
-    val stateText: String
+    /** Mirrors the site's `backState` logic: 0 = closed, else idle/busy/fault bits. */
+    val state: StationState
         get() = when {
-            status == 0 -> "未开放"
-            isIdle -> "空闲"
-            isBusy -> "忙碌"
-            else -> {
-                val info = statusInfo
-                val short = if (info.contains("-")) info.substringBefore("-") else info
-                short.ifEmpty { "不可用" }
-            }
+            status == 0 -> StationState.NOT_OPEN
+            isIdle -> StationState.IDLE
+            isBusy -> StationState.BUSY
+            else -> StationState.FAULT
         }
 
     val papers: List<String>
         get() {
             val out = ArrayList<String>()
             for (code in trays) {
-                val n = Paper.name(code)
-                if (n.isNotEmpty() && !out.contains(n)) out.add(n)
+                val name = Paper.name(code)
+                if (name.isNotEmpty() && !out.contains(name)) out.add(name)
             }
             return out
         }
@@ -101,15 +97,9 @@ data class Station(
     val canScan: Boolean get() = property and DeviceProperty.SCAN != 0
     val canColor: Boolean get() = property and DeviceProperty.COLOR != 0
 
-    val functionsText: String
-        get() {
-            val parts = ArrayList<String>()
-            if (canPrint) parts.add("打印")
-            if (canCopy) parts.add("复印")
-            if (canScan) parts.add("扫描")
-            if (canColor) parts.add("支持彩色")
-            return parts.joinToString("，")
-        }
+    /** True when the device fault flags are set but no busy/idle bit explains it. */
+    val hasFaultFlags: Boolean
+        get() = status and (0x20 or 0x200 or 0x400 or 0x800 or 0x1000 or 0x2000 or 0x10000) != 0
 
     companion object {
         fun from(raw: JSONObject) = Station(
@@ -134,7 +124,8 @@ data class PrintJob(
     val copies: Int,
     val attribute: String,
     val isColor: Boolean,
-    val duplexLabel: String,
+    /** One of [Duplex]'s codes. */
+    val duplex: Int,
     val paper: String,
     val totalPages: Int,
     val dateText: String,
@@ -143,24 +134,13 @@ data class PrintJob(
     val uploadedAt: String
         get() = listOf(dateText, timeText).filter { it.isNotEmpty() }.joinToString(" ")
 
-    val optionsText: String
-        get() {
-            val parts = ArrayList<String>()
-            if (paper.isNotEmpty()) parts.add(paper)
-            if (totalPages > 0) parts.add("$totalPages 页")
-            parts.add("$copies 份")
-            parts.add(if (isColor) "彩色" else "黑白")
-            parts.add(duplexLabel)
-            return parts.joinToString(" · ")
-        }
-
     companion object {
         fun from(raw: JSONObject): PrintJob {
             val attribute = raw.optString("szAttribe", "")
-            val duplexLabel = when {
-                attribute.contains("vdup") -> "双面长边"
-                attribute.contains("hdup") -> "双面短边"
-                else -> "单面"
+            val duplex = when {
+                attribute.contains("vdup") -> Duplex.LONG_EDGE
+                attribute.contains("hdup") -> Duplex.SHORT_EDGE
+                else -> Duplex.SINGLE
             }
 
             var paper = ""
@@ -185,7 +165,7 @@ data class PrintJob(
                 copies = raw.optInt("dwCopies", 1),
                 attribute = attribute,
                 isColor = attribute.contains("color"),
-                duplexLabel = duplexLabel,
+                duplex = duplex,
                 paper = paper,
                 totalPages = pages,
                 dateText = formatDate(raw.optInt("dwCreateDate", 0)),
@@ -235,8 +215,8 @@ data class UsageRecord(
     val money: Int,
     val settleType: Int,
     val mfpSn: Long,
+    /** One of [ReportType]'s codes. */
     val type: Int,
-    val memo: String,
 ) {
     val happenedAt: String
         get() = listOf(dateText, timeText).filter { it.isNotEmpty() }.joinToString(" ")
@@ -245,14 +225,8 @@ data class UsageRecord(
 
     val moneyText: String get() = String.format("¥%.2f", moneyTotal)
 
-    val settleLabel: String get() = if (settleType and 0xFF == 4) "手工收费" else "自助收费"
-
-    val typeLabel: String
-        get() = when (type) {
-            ReportType.SCAN -> "扫描"
-            ReportType.COPY -> "复印"
-            else -> "打印"
-        }
+    /** Staff-billed vs self-service, as the site labels the column. */
+    val billedByStaff: Boolean get() = settleType and 0xFF == 4
 
     companion object {
         fun from(raw: JSONObject): UsageRecord {
@@ -271,7 +245,6 @@ data class UsageRecord(
                 settleType = raw.optInt("dwSettleType", 0),
                 mfpSn = raw.optLong("dwMFPSN", 0),
                 type = raw.optInt("dwType", 0),
-                memo = raw.optString("szMemo", ""),
             )
         }
     }

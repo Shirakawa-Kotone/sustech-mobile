@@ -1,58 +1,74 @@
-# sustech-mobile
+# SUSTech Mobile
 
-An Android app for SUSTech campus services. First subsystem: **联创 PMS cloud
-print** (`pms.sustech.edu.cn`).
+An Android app for SUSTech services — one shell, one service at a time.
 
-The goal is feature parity with the website, not a thin wrapper around one
-screen: every page the print site offers has a native equivalent, and every
-operation the site can perform on your queue is available from the phone.
+Today the app ships two of them, **Printing** (联创 PMS cloud print) and
+**Courses & grades** (TIS timetable, courses, grades, exams), plus a **Today**
+screen that answers "what is happening right now". Everything else SUSTech
+offers is listed in the Services tab as planned work, not as a dead button.
 
-## Features (PMS)
+**The UI is English only.** No screen has Chinese labels; the app's own copy
+lives in `res/values/strings.xml`. Names that come *from* the university —
+course titles, station names, room names — stay in the original language,
+because they are data.
 
-| Website page | App screen | Wire call |
+## Icon
+
+The app icon and the in-app mark are the hand-drawn torch from
+`sustech_survival/resources/logo.svg` — the same artwork the Electron app and
+the web UI use — recoloured from its orange `#ed7005` to the wordmark green
+`#004851` so the phone icon matches the lockup. It lives in
+`res/drawable/ic_torch.xml` (adaptive icon foreground, mark inside the launcher
+safe zone) and `res/drawable/ic_torch_mark.xml` (fills the canvas, used on the
+sign-in screen), generated straight from the source SVG path data.
+
+## The shell
+
+The bottom bar is fixed at three destinations (Today, Services, Account).
+Services are **not** tabs: a new service would push the bar past its limit and
+reshuffle every screen. They open in `ServiceActivity`, so adding a service is
+one entry in `service/Services.kt` plus its root fragment — the shell never
+changes.
+
+| Service | State | Screens |
 |---|---|---|
-| 云打印 upload | `UploadActivity` | `POST /api/client/CloudPrint/Upload` |
-| 打印文档 (queued jobs) | `JobsFragment` + upload FAB | `GET /api/client/PrintJob/Get` |
-| delete a queued job | row delete button | `POST /api/client/PrintJob/Del` |
-| 扫描文档 | `ScanFragment` | `GET /api/client/Scan/Get` |
-| delete a scan | row delete button | `POST /api/client/Scan/Del` |
-| 使用记录 (usage report) | `UsageFragment` | `POST /api/client/Report/DetailPage` |
-| 打印点 (stations) | `StationsFragment` | `GET /api/client/Station/GetList` |
-| 打印点 group filter | spinner | `GET /api/client/Station/GetSrvList` |
-| account / session state | `AccountFragment` | `POST /api/client/Auth/Check` |
-| login | `LoginActivity`, `CasLoginActivity` | `Auth/GetAuthToken` → `Auth/PublicKey` → `Auth/Login` |
+| Printing (PMS) | available | Print queue (+ upload), Stations, Scans, Usage |
+| Courses & grades (TIS) | available | This week, Courses, Grades, Exams |
+| Blackboard, Library, Venue booking, Campus transit, Course reviews, Papers, Faculty, Exchange programs, Language help, Campus Wi-Fi | planned | — |
 
-Print options on upload mirror the site's five controls: color, paper (A3/A4/
-unspecified), single/duplex short/duplex long, page range, copies.
+Printing covers what the print website covers: cloud-print upload with all five
+print options (color, paper, duplex, page range, copies), the queued-document
+list with per-job delete, scanned documents with per-document delete, the
+paginated usage report with date range and type filter, the station list with
+its server-group filter, and account/session state.
 
-**Uploading is free.** Money is only taken when the file is collected at a
-physical printer — the upload screen says so, because the website buries that
-fact.
+Courses & grades covers the TIS reads that matter on a phone: the current
+teaching week's timetable, the term's enrolled courses, every posted grade with
+the credit-weighted GPA, and the exam schedule. Course selection, bidding and
+evaluation are **not** in the app — they are irreversible writes and stay on the
+website.
 
 ## Sign-in
 
-Two paths, both matching what the site accepts:
+Each service is CAS-fronted on its own subdomain, so a session is per host:
 
-1. **CAS WebView** (default button) — the real SUSTech sign-in page loads in a
-   WebView, the PMS back end links your CAS identity to your print account,
-   and the app takes only the resulting `OSESSIONID` cookie. No password ever
-   reaches the app.
-2. **Print-system account** — the site's own flow: `GetAuthToken` → RSA
-   public key + nonce → `RSA/PKCS1Padding("password;nonce")` → `Login`.
-   Identical to what `JSEncrypt` does in the browser, so the server cannot tell
-   the difference. The password is used once and never stored.
+- **School sign-in page in a WebView** (`WebLoginActivity`) — the real SUSTech
+  sign-in page loads, the service sets its own session cookie, and the app lifts
+  only that cookie. No password is typed into the app or stored by it. This one
+  screen serves every service, current and future.
+- **Print-system account** (only printing has it) — the site's own flow:
+  `Auth/GetAuthToken` → RSA public key + nonce → `RSA/PKCS1Padding("password;nonce")`
+  → `Auth/Login`. Identical to what the page's `JSEncrypt` does, so the server
+  cannot tell the difference.
 
-Cookies persist in `SharedPreferences` (`sustech_mobile_session`) so the
-session survives an app restart. `Auth/Check` decides at launch whether to go
-straight to the tabs or show the login screen.
+Cookies persist in `SharedPreferences` (`sustech_mobile_session`), host-scoped,
+so a printing session and a TIS session coexist and survive an app restart.
 
 ## Campus network
 
-PMS answers `HTTP 403` + `Access forbidden, please contact administrator.`
-from outside the campus network. The app detects exactly that response and
-prints a "campus network required" message instead of a JSON decode crash.
-There is no VPN inside the app — connect to the campus network (or the school
-VPN) first.
+PMS answers `HTTP 403` + `Access forbidden, please contact administrator.` from
+outside the campus network, and the app says so instead of failing with a JSON
+error. TIS and the public weather/AQI APIs work from anywhere.
 
 ## Build
 
@@ -65,96 +81,101 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`local.properties` (git-ignored) holds `sdk.dir`.
+`local.properties` (git-ignored) holds `sdk.dir`. A build can bake in a
+different server with `-PpmsBaseUrl=...`; the login screen and the Account tab
+can also change it at runtime.
 
-## Testing off campus
+## Testing
 
-`tools/mock_pms.py` is a stand-in for the API that speaks the same wire format,
-including the RSA login step (it decrypts with a real key, so a padding
-mistake in the app fails there too).
+`tools/mock_pms.py` is a stand-in for the print API that speaks the same wire
+format, including the RSA login step (it decrypts with a real key, so a padding
+mistake in the app fails there too), and serves a stand-in sign-in page so the
+WebView path is testable offline.
 
 ```bash
 python3 tools/mock_pms.py --port 8080
-# in the app: login screen → 服务器设置 (or the 我的 tab) → server URL
-#   emulator:        http://10.0.2.2:8080
-#   physical device: http://<your-lan-ip>:8080
+python3 tools/inject_session.py --mock     # point the app at it (emulator alias)
+python3 tools/drive_ui.py --scenario pms-smoke
 ```
 
-Cleartext HTTP is allowed only for `10.0.2.2`, `127.0.0.1` and `localhost`
-(`res/xml/network_security_config.xml`); every other host, including the real
-PMS, stays HTTPS-only.
+`tools/drive_ui.py` drives the app through `uiautomator` and asserts on real row
+counts, writing screenshots to `tools/screenshots/`:
 
-To bake the mock server in instead of typing it on the device:
+| Scenario | What it proves |
+|---|---|
+| `shell` | Today renders, the catalog lists both services and the planned ones, Account shows per-service sessions |
+| `pms-smoke` | sign-in, queue with upload button, delete removes a row, stations / scans / usage all populate |
+| `pms-upload` | file picker → upload → the file reappears in the queue |
+| `tis-live` | the real TIS: week header, classes, courses, grades (needs an injected session) |
 
-```bash
-./gradlew assembleDebug -PpmsBaseUrl=http://10.0.2.2:8080
-```
+`tools/inject_session.py --tis` copies a live TIS session from the Python
+client's authorizer into the app, so the TIS screens can be verified against the
+real service without automating a password entry on the device. Cookie values
+are never printed.
 
-`tools/drive_ui.py` drives the app on a booted emulator and writes screenshots
-to `tools/screenshots/`:
-
-```bash
-python3 tools/drive_ui.py --scenario pms-cas     # WebView sign-in path
-python3 tools/drive_ui.py --scenario pms-smoke   # password sign-in, all tabs, delete a job
-python3 tools/drive_ui.py --scenario pms-upload  # pick a file, upload, see it queued
-```
-The mock also serves a stand-in sign-in page at the print-page URL, which is
-what makes `pms-cas` testable without a CAS server.
+Cleartext HTTP is allowed only for the emulator host alias and localhost
+(`res/xml/network_security_config.xml`); every other host, including PMS and
+TIS, stays HTTPS-only.
 
 ## Verified
 
-Debug APK built, installed on an Android 14 (arm64) emulator and driven against
-`tools/mock_pms.py` — 2026-09-13:
+Debug APK installed on an Android 14 (arm64) emulator, 2026-09-13:
 
-- `pms-cas` — WebView sign-in lands on the tabs; server log shows the print-page
-  load followed by `Auth/Check`, i.e. the cookie taken out of the WebView is the
-  one the API accepts.
-- `pms-smoke` — password sign-in (`GetAuthToken` → `PublicKey` → `Login`), all
-  five tabs populated (4 stations, 2 queued documents, 1 scan, usage rows,
-  account name), and deleting a job took the queue from
-  `[report-draft.pdf, thesis-appendix.pdf]` to `[thesis-appendix.pdf]`.
-- `pms-upload` — picked a PDF through the system picker, uploaded it, and the
-  queue then listed it (`thesis-appendix.pdf, smoke-upload.pdf`) with the
-  options rendered back (`1 份 · 黑白 · 单面`).
+- **Printing** against the mock: queue of 2 documents → delete → 1 (row count
+  asserted), 4 stations, 1 scan, 20 usage rows, and an upload that came back
+  listed in the queue.
+- **Courses & grades** against the **real TIS** with a live session:
+  `Week 1 · 2026Fall` with 6 classes on the timetable, 7 enrolled courses with
+  teachers/rooms/week ranges, and 7 grade rows on screen (46 total; the GPA
+  header is computed from all of them). Exams is empty because TIS has not
+  published them.
+- **Shell**: Today renders with the week number, the catalog shows both
+  services plus the planned ones, Account shows the printing and TIS sessions
+  separately.
 
-Screenshots from that run are in `tools/screenshots/` (git-ignored).
+Two real bugs the live run caught, both now fixed in `tis/TisModels.kt`: the
+room was read from the teacher's bracket (the timetable's bracket order is
+teacher, class group, then weeks/room/periods), and the single-week endpoint
+sends no `ZC` week bitmap, so the week range now falls back to the row's own
+`1-16周` label.
 
-Everything above ran against the mock. The real endpoints are the ones the two
-sibling clients already use, but no request has gone to `pms.sustech.edu.cn`
-from this app yet — that needs the campus network.
+## Not implemented
+
+- TIS writes: course selection, bidding, evaluation, venue booking.
+- Blackboard, Library, transit, NCES, papers, faculty, exchange programs,
+  language help, campus Wi-Fi — listed as planned in the catalog.
+- Downloading a scan (the list exists; no download call has ever been captured
+  from the website) and account balance/充值 (the wire fields are unknown; the
+  Account tab shows whatever `Auth/Check` returns).
 
 ## Layout
 
 ```
 app/src/main/java/edu/sustech/mobile/
-  core/      AppConfig (server URL), App (singletons), CookieStore, Async
-  pms/       Models.kt (records + wire constants), PmsApi.kt, PmsAuth.kt
-  ui/        LoginActivity, CasLoginActivity, MainActivity, 5 tabs, upload
-tools/mock_pms.py     offline API double
+  core/      ApiException, AppConfig (server URL), App (singletons), CookieStore, Hosts, Async
+  service/   ServiceModule + Services catalog (the shell's only extension point)
+  pms/       wire: Models (records + codes), PmsApi (8 endpoints), PmsAuth (RSA)
+  tis/       wire: ClassEntry / CourseRow / GradeRecord / ExamRecord, TisApi, GPA table
+  weather/   campus weather + air quality (both public)
+  ui/        shell (Login, Main, Service, WebLogin), Today, Services, Account, NotImpl
+  ui/pms/    PmsFragment + Print / Stations / Scans / Usage tabs, UploadActivity
+  ui/tis/    TisFragment + This week / Courses / Grades / Exams tabs
+tools/mock_pms.py       offline print API double
+tools/inject_session.py put a session (or the mock server) into the installed app
+tools/drive_ui.py       uiautomator harness, one scenario per user journey
 ```
 
-One rule carried over from the paired repos: the wire format lives in
-`pms/`, and the UI never parses JSON.
+The wire layers never touch UI copy: labels are resource ids resolved in the UI,
+and the wire layer speaks codes (`StationState`, `Duplex`, `ReportType`).
 
 ## Relation to the other two clients
 
-`edu.sustech.mobile.pms` is a port of the same endpoints already implemented in
-Python (`sustech_survival.pms`, approach adopted from sustech-cli) and
-TypeScript (`sustech-cli`). Field semantics — `JSJC`/`KEY` style naming aside,
-`dwFrom = 0` meaning "all pages", `code = -1` meaning "already printed",
-`dwProperty` capability bitmask, the 0x20/0x200/… fault flags — come from those
-two and are documented at their use sites here.
+Field semantics were ported from the Python client (`sustech_survival`, which
+owns TIS) and the TypeScript fork (`sustech-cli`, which owns the print wire,
+approach adopted from sustech-cli). The GPA conversion table, the period-time
+table, the "current term has no grades yet, read the timetable instead" rule,
+`dwFrom = 0` meaning all pages, and `code = -1` meaning "already printed" all
+come from those two, and are documented at their use sites here.
 
-## Not verified yet
-
-Endpoints that exist on the website but have no known wire format, so they are
-deliberately absent rather than guessed:
-
-- downloading a scanned document (`Scan/Get` lists scans; no download call has
-  ever been captured)
-- account balance / 充值 (the account tab dumps whatever `Auth/Check` returns,
-  which is how those fields get discovered)
-- print-by-code / release-from-phone on the printer
-
-Run the app on the campus network and check the 我的 tab's raw dump before
-adding a screen for any of these.
+The planned-service list mirrors their submodules, so all three clients share
+one roadmap.

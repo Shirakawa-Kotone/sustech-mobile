@@ -1,15 +1,21 @@
 package edu.sustech.mobile.core
 
 import android.content.Context
+import android.widget.Toast
+import edu.sustech.mobile.R
+import edu.sustech.mobile.tis.TisApi
 import edu.sustech.mobile.pms.PmsApi
+import edu.sustech.mobile.weather.WeatherClient
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
 /**
- * Process-wide singletons: one HTTP client, one cookie store, one PMS API.
+ * Process-wide singletons: one HTTP client, one cookie jar, one API per
+ * service.
  *
- * Everything is exposed as a property so a fragment can write
- * `App.api.stations()` without threading a session object around.
+ * The cookie jar is the whole session story — it is host-scoped, so a PMS
+ * session and a TIS session coexist and survive an app restart, exactly as
+ * separate browser tabs would.
  */
 object App {
 
@@ -33,10 +39,18 @@ object App {
 
     val api: PmsApi by lazy { PmsApi(http) { AppConfig.baseUrl } }
 
-    /** Bare hostname of the configured server — no scheme, no port. */
-    fun host(): String = AppConfig.baseUrl
-        .removePrefix("https://")
-        .removePrefix("http://")
-        .substringBefore('/')
-        .substringBefore(':')
+    val tis: TisApi by lazy { TisApi(http) }
+
+    val weather: WeatherClient by lazy { WeatherClient(http) }
+
+    /** Bare hostname of the configured print server. */
+    fun host(): String = Hosts.host(AppConfig.baseUrl)
+
+    fun toast(message: String) {
+        Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
+    }
+
+    fun toast(resId: Int) {
+        Toast.makeText(appContext, resId, Toast.LENGTH_SHORT).show()
+    }
 }

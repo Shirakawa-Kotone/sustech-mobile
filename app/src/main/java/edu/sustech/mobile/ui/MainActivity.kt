@@ -12,7 +12,14 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import edu.sustech.mobile.R
 import edu.sustech.mobile.core.App
 
-/** Hosts the five tabs. One fragment instance per tab, kept alive across switches. */
+/**
+ * The shell: three fixed destinations (Today, Services, Account).
+ *
+ * Individual services are NOT tabs — a new service would push the bottom bar
+ * past its limit and reshuffle everything. They open in
+ * [ServiceActivity] instead, so the shell never changes when the catalog
+ * grows.
+ */
 class MainActivity : AppCompatActivity() {
 
     private val tabs = LinkedHashMap<Int, Fragment>()
@@ -22,23 +29,20 @@ class MainActivity : AppCompatActivity() {
         App.init(applicationContext)
         setContentView(R.layout.activity_main)
 
-        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-        setSupportActionBar(toolbar)
+        setSupportActionBar(findViewById<MaterialToolbar>(R.id.toolbar))
 
         findViewById<BottomNavigationView>(R.id.bottom_nav).setOnItemSelectedListener { item ->
-            show(tabFragment(item.itemId))
+            show(fragmentFor(item.itemId))
             true
         }
-        if (savedInstanceState == null) show(tabFragment(R.id.nav_stations))
+        if (savedInstanceState == null) show(fragmentFor(R.id.nav_today))
     }
 
-    private fun tabFragment(id: Int): Fragment = tabs.getOrPut(id) {
+    private fun fragmentFor(id: Int): Fragment = tabs.getOrPut(id) {
         when (id) {
-            R.id.nav_jobs -> JobsFragment()
-            R.id.nav_scan -> ScanFragment()
-            R.id.nav_usage -> UsageFragment()
+            R.id.nav_services -> ServicesFragment()
             R.id.nav_account -> AccountFragment()
-            else -> StationsFragment()
+            else -> TodayFragment()
         }
     }
 

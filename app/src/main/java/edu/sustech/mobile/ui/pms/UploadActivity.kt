@@ -1,4 +1,4 @@
-package edu.sustech.mobile.ui
+package edu.sustech.mobile.ui.pms
 
 import android.net.Uri
 import android.os.Bundle

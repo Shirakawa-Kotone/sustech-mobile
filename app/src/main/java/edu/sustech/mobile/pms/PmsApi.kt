@@ -1,5 +1,6 @@
 package edu.sustech.mobile.pms
 
+import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.AppConfig
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -15,11 +16,11 @@ import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 
-/** Raised for every PMS failure, with the off-campus case flagged. */
-class PmsException(
-    message: String,
-    val offCampus: Boolean = false,
-) : Exception(message)
+/**
+ * PMS failures are [edu.sustech.mobile.core.ApiException]s; the alias keeps the
+ * call sites readable inside this package.
+ */
+typealias PmsException = edu.sustech.mobile.core.ApiException
 
 /**
  * The whole PMS HTTP surface, one method per website page.

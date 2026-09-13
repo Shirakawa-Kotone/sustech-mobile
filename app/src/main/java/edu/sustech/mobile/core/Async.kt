@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import edu.sustech.mobile.R
-import edu.sustech.mobile.pms.PmsException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -15,7 +14,7 @@ import kotlinx.coroutines.withContext
  * thread, routing every failure through [onErr].
  *
  * Every screen uses this instead of hand-rolling thread + handler plumbing,
- * so error presentation is uniform across tabs.
+ * so error presentation is uniform across services.
  */
 fun <T> LifecycleOwner.runIo(
     block: suspend () -> T,
@@ -35,7 +34,8 @@ fun <T> LifecycleOwner.runIo(
 }
 
 /** Human-readable, translated message for any failure the API can raise. */
-fun Throwable.friendly(context: Context): String = when (this) {
-    is PmsException -> if (offCampus) context.getString(R.string.empty_off_campus) else message.orEmpty()
+fun Throwable.friendly(context: Context): String = when {
+    this is ApiException && offCampus -> context.getString(R.string.empty_off_campus)
+    this is ApiException && signInRequired -> context.getString(R.string.session_expired)
     else -> context.getString(R.string.error_network, message ?: this::class.java.simpleName)
 }

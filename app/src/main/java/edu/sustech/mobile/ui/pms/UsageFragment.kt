@@ -1,4 +1,4 @@
-package edu.sustech.mobile.ui
+package edu.sustech.mobile.ui.pms
 
 import android.os.Bundle
 import android.view.View
@@ -11,16 +11,16 @@ import edu.sustech.mobile.R
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.pms.ReportType
 import edu.sustech.mobile.pms.UsageRecord
+import edu.sustech.mobile.ui.ListFragment
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
 /**
- * 使用记录 — the paginated print / scan / copy history, with the same date
+ * Usage report — the paginated print / scan / copy history, with the same date
  * range and type filters the report page has.
  */
-class UsageFragment : PmsListFragment<UsageRecord>(R.layout.fragment_usage) {
+class UsageFragment : ListFragment<UsageRecord>(R.layout.fragment_usage) {
 
     private val display = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     private val types = listOf(ReportType.PRINT, ReportType.SCAN, ReportType.COPY)
@@ -32,9 +32,7 @@ class UsageFragment : PmsListFragment<UsageRecord>(R.layout.fragment_usage) {
 
     override fun emptyText() = getString(R.string.usage_empty)
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
+    override fun onReady(view: View) {
         val calendar = Calendar.getInstance()
         view.findViewById<EditText>(R.id.input_end).setText(display.format(calendar.time))
         calendar.add(Calendar.DAY_OF_YEAR, -90)
@@ -87,8 +85,22 @@ class UsageFragment : PmsListFragment<UsageRecord>(R.layout.fragment_usage) {
     override fun bindRow(view: View, item: UsageRecord, position: Int) {
         view.findViewById<TextView>(R.id.usage_when).text = item.happenedAt
         view.findViewById<TextView>(R.id.usage_money).text = item.moneyText
-        view.findViewById<TextView>(R.id.usage_detail).text =
-            "${item.typeLabel} · ${item.paper.ifEmpty { "—" }} · ${item.pages} 页 · ${item.settleLabel} · #${item.mfpSn}"
+        view.findViewById<TextView>(R.id.usage_detail).text = getString(
+            R.string.usage_detail,
+            getString(
+                when (item.type) {
+                    ReportType.SCAN -> R.string.usage_type_scan
+                    ReportType.COPY -> R.string.usage_type_copy
+                    else -> R.string.usage_type_print
+                },
+            ),
+            item.paper.ifEmpty { "—" },
+            item.pages,
+            getString(
+                if (item.billedByStaff) R.string.usage_settle_manual else R.string.usage_settle_self,
+            ),
+            item.mfpSn,
+        )
     }
 
     /** The form takes either yyyy-MM-dd or yyyyMMdd; the API wants yyyyMMdd. */

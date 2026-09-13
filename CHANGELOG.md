@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.2.0 — 2026-09-13
+
+- **Multi-service shell.** The app is no longer a print client: a service
+  catalog (`service/Services.kt`) plus a generic `ServiceActivity` host means a
+  new SUSTech service is one entry and one root fragment. The bottom bar is
+  fixed at Today / Services / Account, so the shell does not change as the
+  catalog grows.
+- **New service: courses & grades (TIS).** This week's timetable (week number
+  from TIS itself), the term's enrolled courses grouped one row per course, all
+  posted grades with the credit-weighted GPA, and the exam schedule. Sign-in is
+  the school page in a WebView; writes (selection, bidding, evaluation) are not
+  in the app.
+- **New screen: Today.** Week number, today's classes, campus weather and air
+  quality, next exam. Weather/AQI are public APIs and work off campus; the rest
+  says so when TIS is not signed in.
+- **App icon is the project's own torch mark.** `res/drawable/ic_torch.xml` and
+  `ic_torch_mark.xml` are generated from `sustech_survival/resources/logo.svg`
+  (the artwork the Electron app and the web UI already ship) with the fill
+  changed from `#ed7005` to the wordmark green `#004851`; the placeholder
+  printer glyph is gone. Approval: user request to use their torch, recoloured.
+- **English-only UI.** The Chinese default strings file is gone, the app is
+  named SUSTech Mobile (no Chinese name), and every label comes from
+  `res/values/strings.xml`. Derived labels (idle/busy/fault, duplex, usage
+  type, settle type) moved out of the wire layer into resources, so `pms/` and
+  `tis/` now speak codes only.
+- One WebView sign-in for every service (`WebLoginActivity`), parameterized by
+  entry URL and the cookie that proves the landing; the print-only RSA account
+  login stays in `PmsAuth`.
+- Session probing is per service: the launcher advances if any stored session
+  still works, and the Account tab reports the printing and TIS sessions
+  separately.
+- `tools/inject_session.py`: puts the mock server URL or a live TIS session into
+  the installed app, so screens can be verified without typing credentials into
+  a WebView. Cookie values are never printed.
+- `tools/drive_ui.py` rewritten for the new navigation with four scenarios
+  (shell, pms-smoke, pms-upload, tis-live), row-count assertions instead of
+  "the screen looked right", and a wait for network-backed lists.
+- Fixed two real bugs found by running against the live service: the timetable
+  room was read out of the teacher's bracket, and the single-week endpoint's
+  missing `ZC` bitmap left the week range blank. Teachers are now comma-spaced
+  and de-duplicated, and repeated lab meetings collapse to one.
+- Service catalog driven from the same submodule list the Python and TypeScript
+  clients use — approach adopted from sustech-cli.
+
 ## 0.1.0 — 2026-09-13
 
 - New project: Android client for SUSTech campus services, first subsystem
@@ -22,9 +66,6 @@
   at a LAN or mock server without a code change.
 - `tools/drive_ui.py`: uiautomator-driven emulator harness with three scenarios
   (WebView sign-in, password sign-in + all tabs + delete, upload round trip).
-  Screenshots are written to `tools/screenshots/`.
-- Mock server also serves a stand-in sign-in page at the print-page URL, so the
-  WebView login path is testable without a CAS server.
 - Verified on an Android 14 emulator against the mock: CAS sign-in, password
   sign-in, all five tabs, job deletion (queue count asserted), and a full file
   upload that came back listed in the print queue.

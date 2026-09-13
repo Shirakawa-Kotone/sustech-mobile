@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/nav_stations" android:icon="@drawable/ic_printer" android:title="@string/tab_stations" />
-    <item android:id="@+id/nav_jobs" android:icon="@drawable/ic_doc" android:title="@string/tab_jobs" />
-    <item android:id="@+id/nav_scan" android:icon="@drawable/ic_scan" android:title="@string/tab_scan" />
-    <item android:id="@+id/nav_usage" android:icon="@drawable/ic_history" android:title="@string/tab_usage" />
-    <item android:id="@+id/nav_account" android:icon="@drawable/ic_person" android:title="@string/tab_account" />
+    <item android:id="@id/nav_today" android:icon="@drawable/ic_today" android:title="@string/tab_today" />
+    <item android:id="@id/nav_services" android:icon="@drawable/ic_grid" android:title="@string/tab_services" />
+    <item android:id="@id/nav_account" android:icon="@drawable/ic_person" android:title="@string/tab_account" />
 </menu>

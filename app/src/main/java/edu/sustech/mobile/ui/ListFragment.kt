@@ -1,8 +1,11 @@
 package edu.sustech.mobile.ui
 
+import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
+import android.widget.Toast
 import androidx.annotation.LayoutRes
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -12,7 +15,7 @@ import edu.sustech.mobile.R
 import edu.sustech.mobile.core.friendly
 import edu.sustech.mobile.core.runIo
 
-/** A tab that reloads its own data when the toolbar refresh button is hit. */
+/** A screen that reloads its own data when the toolbar refresh button is hit. */
 interface Refreshable {
     fun refresh()
 }
@@ -36,7 +39,8 @@ class SimpleAdapter<T>(
         return Holder(view)
     }
 
-    override fun onBindViewHolder(holder: Holder, position: Int) = onBind(holder.itemView, rows[position], position)
+    override fun onBindViewHolder(holder: Holder, position: Int) =
+        onBind(holder.itemView, rows[position], position)
 
     override fun getItemCount(): Int = rows.size
 
@@ -44,10 +48,13 @@ class SimpleAdapter<T>(
 }
 
 /**
- * Shared plumbing for the five tabs: swipe-to-refresh, an empty/loading
+ * Shared plumbing every list screen uses: swipe-to-refresh, an empty/loading
  * label, uniform error text, and a single [fetch] the subclass implements.
+ *
+ * Service-agnostic on purpose — the print tabs and the TIS tabs both ride on
+ * this, so behavior (error copy, refresh, empty state) never diverges.
  */
-abstract class PmsListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRes), Refreshable {
+abstract class ListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRes), Refreshable {
 
     protected lateinit var list: RecyclerView
     protected lateinit var empty: View
@@ -64,7 +71,7 @@ abstract class PmsListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRe
     /** Text shown when [fetch] returns nothing. */
     protected open fun emptyText(): String = getString(R.string.empty_none)
 
-    override fun onViewCreated(view: View, savedInstanceState: android.os.Bundle?) {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         list = view.findViewById(R.id.list)
         empty = view.findViewById(R.id.empty)
@@ -73,8 +80,12 @@ abstract class PmsListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRe
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = adapter
         swipe.setOnRefreshListener { load() }
+        onReady(view)
         load()
     }
+
+    /** Hook for subclasses that need extra view wiring before the first load. */
+    protected open fun onReady(view: View) = Unit
 
     override fun refresh() = load()
 
@@ -85,22 +96,28 @@ abstract class PmsListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRe
             onOk = { rows ->
                 swipe.isRefreshing = false
                 adapter.submit(rows)
-                empty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
-                if (rows.isEmpty()) (empty as? android.widget.TextView)?.text = emptyText()
+                showEmpty(rows.isEmpty(), emptyText())
                 onLoaded(rows)
             },
             onErr = { error ->
                 swipe.isRefreshing = false
                 adapter.submit(emptyList())
-                empty.visibility = View.VISIBLE
-                (empty as? android.widget.TextView)?.text = error.friendly(requireContext())
+                showEmpty(true, errorText(error))
             },
         )
     }
 
+    protected fun showEmpty(visible: Boolean, text: String) {
+        empty.visibility = if (visible) View.VISIBLE else View.GONE
+        if (visible) (empty as? TextView)?.text = text
+    }
+
     protected open fun onLoaded(rows: List<T>) = Unit
 
+    /** Subclasses can replace the generic error copy (say, "not signed in"). */
+    protected open fun errorText(error: Throwable): String = error.friendly(requireContext())
+
     protected fun showError(error: Throwable) {
-        android.widget.Toast.makeText(requireContext(), error.friendly(requireContext()), android.widget.Toast.LENGTH_LONG).show()
+        Toast.makeText(requireContext(), error.friendly(requireContext()), Toast.LENGTH_LONG).show()
     }
 }

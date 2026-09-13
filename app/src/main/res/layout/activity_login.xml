@@ -12,11 +12,11 @@
         android:padding="24dp">
 
         <ImageView
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
             android:layout_marginTop="24dp"
             android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_printer" />
+            android:src="@drawable/ic_torch_mark" />
 
         <TextView
             android:layout_width="wrap_content"
