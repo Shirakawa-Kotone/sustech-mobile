@@ -404,40 +404,52 @@ def pick_file(ui: Ui, filename: str) -> bool:
     return False
 
 
-def scenario_pms_upload(ui: Ui, filename: str, user: str, password: str) -> int:
+def scenario_pms_upload(ui: Ui, filename: str, user: str, password: str, tag: str = "", expect_queued: bool = True) -> int:
     """Pick a pushed file, upload it, confirm it lands in the queue."""
     failures = []
     ensure_signed_in(ui, user, password)
     open_service(ui, "Printing")
 
     ui.tap(rid="fab_upload", settle=2)
-    ui.screenshot("40-upload-empty")
+    ui.screenshot("40-upload-empty" + tag)
     if not ui.visible("btn_pick"):
         failures.append("upload screen did not open")
         return report(failures)
 
     ui.tap(rid="btn_pick", settle=4)
-    ui.screenshot("41-picker-recent")
+    ui.screenshot("41-picker-recent" + tag)
     if not pick_file(ui, filename):
         failures.append(f"{filename} could not be selected in the file picker")
-        ui.screenshot("42b-picker-missing")
+        ui.screenshot("42b-picker-missing" + tag)
         return report(failures)
-    ui.screenshot("42-picker-selected")
+    ui.screenshot("42-picker-selected" + tag)
 
-    ui.screenshot("43-upload-ready")
+    ui.screenshot("43-upload-ready" + tag)
     ui.tap(rid="btn_upload", settle=8)
-    ui.screenshot("44-upload-done")
+    ui.screenshot("44-upload-done" + tag)
 
-    # UploadActivity finishes back into the print service; the queue must now
-    # list the uploaded name.
-    to_shell(ui)
-    open_service(ui, "Printing")
-    rows = ui.wait_count("job_name", minimum=1, timeout=40)
-    ui.screenshot("45-queue-after-upload")
-    listed = ui.row_texts("job_name")
-    print(f"    queue rows: {rows} -> {listed}")
-    if not any(filename in text for text in listed):
-        failures.append(f"{filename} did not appear in the print queue rows")
+    # An accepted upload must bring the screen back to the queue; a screen that
+    # stays open means the app decided the upload failed. Which of the two is
+    # correct depends on whether the server actually queued the job.
+    still_open = ui.visible("btn_upload")
+    if still_open and expect_queued:
+        failures.append("the upload screen is still open — an accepted upload was treated as a failure")
+    if not still_open and not expect_queued:
+        failures.append("the app left the upload screen although the job never reached the queue")
+
+    if still_open:
+        ui.screenshot("45-upload-stayed-open" + tag)
+    else:
+        to_shell(ui)
+        open_service(ui, "Printing")
+        rows = ui.wait_count("job_name", minimum=1, timeout=40)
+        ui.screenshot("45-queue-after-upload" + tag)
+        listed = ui.row_texts("job_name")
+        print(f"    queue rows: {rows} -> {listed}")
+        if expect_queued and filename not in " ".join(listed):
+            failures.append(f"{filename} is not in the print queue rows: {listed}")
+        if not expect_queued and filename in " ".join(listed):
+            failures.append(f"{filename} reached the queue although the server never queued it")
 
     return report(failures)
 
@@ -523,6 +535,12 @@ def main() -> int:
         "shell": lambda: scenario_shell(ui, args.user, args.password),
         "pms-smoke": lambda: scenario_pms_smoke(ui, args.user, args.password),
         "pms-upload": lambda: scenario_pms_upload(ui, args.file, args.user, args.password),
+        "pms-upload-html": lambda: scenario_pms_upload(
+            ui, args.file, args.user, args.password, tag="-html"
+        ),
+        "pms-upload-dropped": lambda: scenario_pms_upload(
+            ui, args.file, args.user, args.password, tag="-dropped", expect_queued=False
+        ),
         "tis-live": lambda: scenario_tis_live(ui),
         "theme": lambda: scenario_theme(ui, args.user, args.password),
     }

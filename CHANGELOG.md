@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.3 — 2026-09-13
+
+- **Fixed: an accepted upload was reported as a failure, so the screen never came
+  back to the queue.** Reported from campus: the job did reach the printer queue,
+  the app said otherwise. Cause: the 云打印 form posts with `BackURL=result.html`,
+  so an accepted upload can answer with the HTML result page instead of the JSON
+  envelope, which the app read as "not an envelope → failed". The queue is now the
+  source of truth: the app snapshots the job ids before the upload and reports
+  success once a new job with that file name is in the queue, whatever the body
+  said. A server that answers 200 without queueing anything is still reported as a
+  failure, and the message now carries the HTTP status and a body snippet.
+- Harness: `pms-upload-html` and `pms-upload-dropped` scenarios with two mock
+  behaviours (`--upload-html`, `--upload-drop`) so both answers stay covered.
+- `inject_session.py --mock-port` points the app at a mock on any port without
+  putting an address on the command line.
+
 ## 0.3.2 — 2026-09-13
 
 - **Fixed: a plain-`http://` server address could be configured and then fail

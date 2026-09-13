@@ -139,6 +139,7 @@ class PmsApi(
     ): String {
         val url = (baseUrl() + "/api/client/CloudPrint/Upload").toHttpUrlOrNull()
             ?: throw PmsException("Bad server URL: ${baseUrl()}")
+        val before = runCatching { printJobs().map { it.jobId } }.getOrDefault(emptyList())
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("szPath", file.name, ProgressRequestBody(file, onProgress))
@@ -158,14 +159,50 @@ class PmsApi(
             .header("X-Requested-With", "XMLHttpRequest")
             .build()
 
-        val text = execute(request, allowErrorStatus = true)
-        if (text.startsWith("Access forbidden")) {
+        val answer = execute(request, allowErrorStatus = true)
+        if (answer.text.startsWith("Access forbidden")) {
             throw PmsException("Off campus", offCampus = true)
         }
-        val json = parseOrNull(text) ?: throw PmsException("Non-JSON response from upload")
+        val json = parseOrNull(answer.text)
+        if (json == null) {
+            // The page posts with BackURL=result.html, so an accepted upload can
+            // answer with the HTML result page instead of a JSON envelope — which
+            // the browser never notices. Believe the queue, not the body: a job
+            // that is not in the queue is the only real failure.
+            if (confirmQueued(file.name, before)) {
+                return "uploaded — confirmed in the print queue"
+            }
+            throw PmsException(
+                "HTTP ${answer.code} and the job never reached the queue: ${snippet(answer.text)}",
+            )
+        }
         val code = json.optInt("code", -1)
-        if (code != 0) throw PmsException(json.optString("message", "code=$code"))
+        if (code != 0) {
+            throw PmsException("${json.optString("message", "code=$code")} (HTTP ${answer.code})")
+        }
         return json.optString("message", "").ifEmpty { "ok" }
+    }
+
+    /**
+     * True once [fileName] appears as a job that was not in [before].
+     *
+     * Uploading is the one write whose answer cannot be trusted to mean success
+     * (see above), so the queue is the source of truth. Blocks the calling
+     * thread briefly — call it from the IO dispatcher.
+     */
+    private fun confirmQueued(fileName: String, before: List<Long>): Boolean {
+        repeat(3) { attempt ->
+            val queued = runCatching { printJobs() }.getOrNull().orEmpty()
+            if (queued.any { it.fileName == fileName && it.jobId !in before }) return true
+            if (attempt < 2) Thread.sleep(1500)
+        }
+        return false
+    }
+
+    /** Tag-stripped, whitespace-collapsed preview of a response body. */
+    private fun snippet(text: String): String {
+        val plain = text.replace(Regex("<[^>]*>"), " ").replace(Regex("\\s+"), " ").trim()
+        return if (plain.isEmpty()) "(empty body)" else plain.take(160)
     }
 
     /**
@@ -192,7 +229,8 @@ class PmsApi(
             .header("Accept", "application/json, text/javascript, */*; q=0.01")
             .header("Referer", baseUrl() + "/client/new/cprintPc/")
             .build()
-        val json = parseOrNull(execute(request))
+        val answer = execute(request)
+        val json = parseOrNull(answer.text)
             ?: throw PmsException("Non-JSON response — session gone", signInRequired = true)
         val code = json.optInt("code", -1)
         if (code != 0) throw PmsException(json.optString("message", "code=$code"))
@@ -207,7 +245,8 @@ class PmsApi(
             .header("Accept", "application/json, text/javascript, */*; q=0.01")
             .header("Referer", baseUrl() + "/client/new/cprintPc/")
             .build()
-        val json = parseOrNull(execute(request))
+        val answer = execute(request)
+        val json = parseOrNull(answer.text)
             ?: throw PmsException("Non-JSON response — session gone", signInRequired = true)
         if (throwOnError && json.optInt("code", -1) != 0) {
             val code = json.optInt("code", -1)
@@ -216,7 +255,10 @@ class PmsApi(
         return json
     }
 
-    private fun execute(request: Request, allowErrorStatus: Boolean = false): String {
+    /** A response body plus the status that produced it, so errors can be specific. */
+    private data class HttpAnswer(val code: Int, val text: String)
+
+    private fun execute(request: Request, allowErrorStatus: Boolean = false): HttpAnswer {
         try {
             http.newCall(request).execute().use { response ->
                 val text = response.body?.string().orEmpty()
@@ -232,7 +274,7 @@ class PmsApi(
                 if (!allowErrorStatus && response.code >= 400) {
                     throw PmsException("HTTP ${response.code}")
                 }
-                return text
+                return HttpAnswer(response.code, text)
             }
         } catch (e: IOException) {
             throw PmsException(e.message ?: "network error")

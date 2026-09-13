@@ -108,6 +108,22 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 different server with `-PpmsBaseUrl=...`; the login screen and the Account tab
 can also change it at runtime.
 
+### Upload answers the real site gives
+
+`BackURL=result.html` means an accepted upload can answer with an HTML result page
+instead of the JSON envelope, and a server can also answer 200 for a job it never
+queued. Both would fool a client that reads the body as the verdict, so the app
+confirms an upload by reading the print queue back (a job id that was not there
+before) and only then reports success. The mock reproduces both cases:
+
+```bash
+python3 tools/mock_pms.py --port 8081 --upload-html              # result page answer
+python3 tools/mock_pms.py --port 8082 --upload-html --upload-drop # answered, never queued
+python3 tools/inject_session.py --mock-port 8081 --creds          # point the app at it
+python3 tools/drive_ui.py --scenario pms-upload-html
+python3 tools/drive_ui.py --scenario pms-upload-dropped           # must NOT claim success
+```
+
 ## Testing
 
 Print tests never need the campus network or a VPN: the app is pointed at

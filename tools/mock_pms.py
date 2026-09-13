@@ -167,6 +167,14 @@ STATE = {
     "log": [],
 }
 
+# Ways the real server answers an upload that a naive client gets wrong. Both are
+# set from the command line so the harness can exercise them.
+#   upload_html: reply with the BackURL=result.html page instead of an envelope,
+#                exactly like the site does for an accepted job.
+#   upload_drop: accept the request, queue nothing, still answer 200 — the case
+#                where only a queue read-back can tell success from failure.
+CONFIG = {"upload_html": False, "upload_drop": False}
+
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=1024)
 PUBLIC_SPKI = base64.b64encode(
     KEY.public_key().public_bytes(
@@ -463,9 +471,22 @@ class Handler(BaseHTTPRequestHandler):
             "_bytes": file_bytes,
             "_fields": fields,
         }
-        with LOCK:
-            STATE["uploads"].append(record)
-            STATE["print_jobs"].append(record)
+        if not CONFIG["upload_drop"]:
+            with LOCK:
+                STATE["uploads"].append(record)
+                STATE["print_jobs"].append(record)
+        if CONFIG["upload_html"]:
+            page = (
+                "<!doctype html>\n<html lang=\"zh\"><head><meta charset=\"utf-8\">"
+                "<title>上传结果</title></head>\n<body><h3>上传成功</h3>"
+                f"<p>{filename}</p></body></html>"
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(page)))
+            self.end_headers()
+            self.wfile.write(page)
+            return
         self._send(envelope(code=0, message="upload ok"))
 
 
@@ -473,7 +494,19 @@ def main():
     parser = argparse.ArgumentParser(description="Offline mock of the SUSTech PMS API")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument(
+        "--upload-html",
+        action="store_true",
+        help="answer uploads with the BackURL=result.html page instead of an envelope",
+    )
+    parser.add_argument(
+        "--upload-drop",
+        action="store_true",
+        help="accept uploads, queue nothing, still answer 200 (only a read-back can tell)",
+    )
     args = parser.parse_args()
+    CONFIG["upload_html"] = args.upload_html
+    CONFIG["upload_drop"] = args.upload_drop
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"[mock-pms] listening on http://{args.host}:{args.port}", flush=True)

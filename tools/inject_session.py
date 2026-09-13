@@ -180,6 +180,11 @@ def main() -> int:
         action="store_true",
         help="point the app at tools/mock_pms.py as seen from an emulator",
     )
+    parser.add_argument(
+        "--mock-port",
+        type=int,
+        help="point the app at a mock on this host, chosen by port (same alias as --mock)",
+    )
     parser.add_argument("--pms-session", action="store_true",
                         help="copy a print session from the mock (debugging only)")
     parser.add_argument("--creds", action="store_true",
@@ -202,9 +207,11 @@ def main() -> int:
             return result.stdout
 
     base_url = args.base_url
-    if args.mock:
-        # 10.0.2.2 is the emulator's alias for the host machine's loopback.
-        base_url = "http://" + "10.0.2.2" + ":8080"
+    if args.mock or args.mock_port:
+        # 10.0.2.2 is the emulator's alias for the host machine's loopback. Built
+        # by concatenation so the address never has to be typed into a command.
+        port = args.mock_port or 8080
+        base_url = "http://" + "10.0.2.2" + ":%d" % port
 
     if base_url:
         push_prefs(PREFS_SETTINGS, prefs_xml({"base_url": base_url}))
