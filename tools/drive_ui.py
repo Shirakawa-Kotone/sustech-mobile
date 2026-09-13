@@ -256,16 +256,17 @@ def ensure_signed_in(ui: Ui, user: str, password: str) -> None:
     # The fields are on screen while the app signs in silently from its stored
     # account (CAS takes a few seconds), so wait for it to leave on its own
     # before concluding that a human is needed.
-    for _ in range(25):
+    for _ in range(45):
         if not ui.visible("input_username") or ui.visible("bottom_nav"):
             return
         time.sleep(2)
 
     if not user or not password:
+        screen = " | ".join(t for t in ui.texts() if len(t) > 12)[:300]
         raise RuntimeError(
             "the app is parked on the sign-in screen: no account is configured on the "
             "device, or the stored one was refused. "
-            "Run: python3 tools/inject_session.py --creds",
+            f"Run: python3 tools/inject_session.py --creds  (screen: {screen})",
         )
     sign_in(ui, user, password)
     to_shell(ui)
@@ -275,12 +276,31 @@ def to_shell(ui: Ui, attempts: int = 3) -> None:
     """Back out of a service screen until the bottom bar is reachable.
 
     A service opens in its own activity, so a scenario that just navigated
-    inside one has no bottom bar to tap.
+    inside one has no bottom bar to tap. The sign-in screen is *waited for*
+    rather than backed out of: BACK there closes the app, which then looks like
+    a missing bottom bar three steps later.
     """
     for _ in range(attempts):
         if ui.visible("nav_services"):
             return
+        if ui.visible("input_username"):
+            wait_for_signed_in(ui)
+            if ui.visible("nav_services"):
+                return
         ui.back()
+
+
+def wait_for_signed_in(ui: Ui, seconds: int = 90) -> bool:
+    """Wait out the app's own silent sign-in. True once the shell is up."""
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        if ui.visible("bottom_nav"):
+            return True
+        if not ui.visible("input_username"):
+            time.sleep(1)
+            continue
+        time.sleep(2)
+    return ui.visible("bottom_nav")
 
 
 def open_service(ui: Ui, title: str) -> None:
@@ -537,6 +557,9 @@ def main() -> int:
         "pms-upload": lambda: scenario_pms_upload(ui, args.file, args.user, args.password),
         "pms-upload-html": lambda: scenario_pms_upload(
             ui, args.file, args.user, args.password, tag="-html"
+        ),
+        "pms-upload-redirect-http": lambda: scenario_pms_upload(
+            ui, args.file, args.user, args.password, tag="-redir"
         ),
         "pms-upload-dropped": lambda: scenario_pms_upload(
             ui, args.file, args.user, args.password, tag="-dropped", expect_queued=False

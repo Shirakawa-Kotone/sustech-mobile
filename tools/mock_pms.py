@@ -173,7 +173,7 @@ STATE = {
 #                exactly like the site does for an accepted job.
 #   upload_drop: accept the request, queue nothing, still answer 200 — the case
 #                where only a queue read-back can tell success from failure.
-CONFIG = {"upload_html": False, "upload_drop": False}
+CONFIG = {"upload_html": False, "upload_drop": False, "upload_redirect_http": False}
 
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=1024)
 PUBLIC_SPKI = base64.b64encode(
@@ -475,6 +475,17 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 STATE["uploads"].append(record)
                 STATE["print_jobs"].append(record)
+        if CONFIG["upload_redirect_http"]:
+            # Exactly what the real deployment does after accepting a job: bounce
+            # to result.html at an http:// address. A client that follows it is
+            # blocked by the platform's cleartext policy and reports a failure
+            # even though the job is queued.
+            host = self.headers.get("Host") or "localhost"
+            self.send_response(302)
+            self.send_header("Location", "http://" + host + "/client/new/cprintPc/result.html")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if CONFIG["upload_html"]:
             page = (
                 "<!doctype html>\n<html lang=\"zh\"><head><meta charset=\"utf-8\">"
@@ -500,6 +511,11 @@ def main():
         help="answer uploads with the BackURL=result.html page instead of an envelope",
     )
     parser.add_argument(
+        "--upload-redirect-http",
+        action="store_true",
+        help="queue the upload, then answer 302 at an http:// address (the real-layout bug)",
+    )
+    parser.add_argument(
         "--upload-drop",
         action="store_true",
         help="accept uploads, queue nothing, still answer 200 (only a read-back can tell)",
@@ -507,6 +523,7 @@ def main():
     args = parser.parse_args()
     CONFIG["upload_html"] = args.upload_html
     CONFIG["upload_drop"] = args.upload_drop
+    CONFIG["upload_redirect_http"] = args.upload_redirect_http
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"[mock-pms] listening on http://{args.host}:{args.port}", flush=True)

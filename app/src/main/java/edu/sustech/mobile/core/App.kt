@@ -33,20 +33,30 @@ object App {
 
     val cookies: CookieStore by lazy { CookieStore(appContext) }
 
+    /**
+     * Client for API calls. Redirects are **not** followed: a 302 to CAS means
+     * "sign in again", and a 302 that points at an `http://` address must never
+     * be chased (the platform blocks cleartext anyway, which used to surface as a
+     * confusing "CLEARTEXT" failure on an otherwise healthy https server).
+     */
     val http: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .cookieJar(cookies)
+            .followRedirects(false)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(120, TimeUnit.SECONDS)
             .build()
     }
 
+    /** Client for the sign-in handshake, whose ticket exchange *is* a redirect chain. */
+    val httpFollow: OkHttpClient by lazy { http.newBuilder().followRedirects(true).build() }
+
     /**
-     * Client that does not follow redirects: the CAS handshake hands the
-     * ticket back in a `Location` header, and step 4 needs that value.
+     * Alias kept for the CAS step that needs the raw `Location` header. Same as
+     * [http] now that API calls stopped following redirects.
      */
-    val httpNoRedirect: OkHttpClient by lazy { http.newBuilder().followRedirects(false).build() }
+    val httpNoRedirect: OkHttpClient get() = http
 
     val api: PmsApi by lazy { PmsApi(http) { AppConfig.baseUrl } }
 

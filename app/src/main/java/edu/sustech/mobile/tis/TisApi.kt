@@ -137,6 +137,11 @@ class TisApi(private val http: OkHttpClient) {
         val text = try {
             http.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
+                if (response.code in 300..399) {
+                    // TIS answers a dead session by redirecting rather than by
+                    // saying so; the redirect target is the login flow.
+                    throw ApiException("TIS session expired (HTTP ${response.code})", signInRequired = true)
+                }
                 if (response.code == 401 || response.code == 403) {
                     throw ApiException("TIS refused the request (HTTP ${response.code})", signInRequired = true)
                 }

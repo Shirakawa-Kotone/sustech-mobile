@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.4 — 2026-09-13
+
+- **Fixed: an upload could still fail with a cleartext error although the server
+  address was a correct https one.** Reported from campus with the message
+  showing an https address; the only way both can be true is that the server
+  answered the upload with a redirect to an `http://` page (the 云打印 result
+  page), OkHttp chased it, and the platform blocked cleartext — surfacing as a
+  misleading "plain HTTP was attempted" failure on a healthy server.
+  API calls no longer follow redirects at all: a 302 to CAS now means "session
+  gone" (silent re-login), a 302 at an `http://` address is reported as the
+  server's own mismatch, and anything else is reported as an unexpected
+  redirect. The sign-in handshake keeps its own redirect-following client — its
+  ticket exchange *is* a redirect chain.
+- **Uploads now treat the queue as the verdict on every answer**, including
+  redirects and cleartext blocks: if a new job with that file name is in the
+  queue, it worked and the screen returns to the queue. Only a genuinely
+  unqueued upload is reported as a failure.
+- Harness: `--upload-redirect-http` mock behaviour plus a
+  `pms-upload-redirect-http` scenario (accept the job, then bounce to an
+  `http://` result page — the reported case); the driver now waits out the app's
+  silent sign-in instead of pressing BACK on the sign-in screen, and a parked
+  sign-in screen reports what it says instead of a raw "no node" error.
+
 ## 0.3.3 — 2026-09-13
 
 - **Fixed: an accepted upload was reported as a failure, so the screen never came

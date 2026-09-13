@@ -2,6 +2,7 @@ package edu.sustech.mobile.pms
 
 import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.AppConfig
+import edu.sustech.mobile.core.Hosts
 import edu.sustech.mobile.sso.Session
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -159,7 +160,17 @@ class PmsApi(
             .header("X-Requested-With", "XMLHttpRequest")
             .build()
 
-        val answer = execute(request, allowErrorStatus = true)
+        val answer = try {
+            execute(request, allowErrorStatus = true)
+        } catch (e: ApiException) {
+            // An accepted upload can be followed by an answer we cannot use: the
+            // result page, or a redirect aimed at a plain-HTTP address. The queue
+            // is the verdict — if the job is there, it worked.
+            if (confirmQueued(file.name, before)) {
+                return "uploaded — confirmed in the print queue (the answer was: ${e.message})"
+            }
+            throw e
+        }
         if (answer.text.startsWith("Access forbidden")) {
             throw PmsException("Off campus", offCampus = true)
         }
@@ -262,6 +273,21 @@ class PmsApi(
         try {
             http.newCall(request).execute().use { response ->
                 val text = response.body?.string().orEmpty()
+                if (response.code in 300..399) {
+                    // Redirects are answers, not detours. A ticket redirect means
+                    // the session is gone; an http:// target is the server's own
+                    // mismatch and must be reported as such, never chased.
+                    val location = response.header("Location").orEmpty()
+                    when {
+                        location.contains(Hosts.CAS) || location.contains("/cas/") ->
+                            throw PmsException("Session gone (server redirected to CAS)", signInRequired = true)
+                        location.startsWith("http://") ->
+                            throw PmsException("server redirected to a plain-HTTP address: $location")
+                        else -> throw PmsException(
+                            "unexpected redirect (HTTP ${response.code}) to ${location.ifEmpty { "nowhere" }}",
+                        )
+                    }
+                }
                 if (response.code == 403 || text.startsWith("Access forbidden")) {
                     throw PmsException("Off campus (HTTP ${response.code})", offCampus = true)
                 }

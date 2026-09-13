@@ -108,7 +108,7 @@ object CasLogin {
         val ticket = location.toHttpUrlOrNull()
             ?: throw ApiException("CAS returned a malformed ticket URL")
         try {
-            App.http.newCall(
+            App.httpFollow.newCall(
                 Request.Builder()
                     .url(ticket)
                     .get()
@@ -132,7 +132,7 @@ object CasLogin {
             .apply { if (xhr) header("X-Requested-With", "XMLHttpRequest") }
             .build()
         return try {
-            App.http.newCall(request).execute().use { response ->
+            App.httpFollow.newCall(request).execute().use { response ->
                 val html = response.body?.string().orEmpty()
                 Regex("name=\"execution\" value=\"([^\"]+)\"").find(html)?.groupValues?.get(1)
             }

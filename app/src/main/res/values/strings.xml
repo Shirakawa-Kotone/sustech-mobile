@@ -13,7 +13,7 @@
     <string name="login_rejected">Sign-in was refused — check your student ID and password.</string>
     <string name="login_unreachable">Nothing answered — check your connection. Printing needs the campus network, so it stays signed out off campus.</string>
     <string name="session_expired">Session expired — sign in again.</string>
-    <string name="error_cleartext">The server address uses plain http:// (%1$s). This app only allows plain HTTP for a local test server — use the https:// address.</string>
+    <string name="error_cleartext">Plain HTTP was attempted (%2$s) while the server is set to %1$s. If the server redirected to an http:// address, that mismatch is on the server side — and the job may still be queued.</string>
     <string name="banner_campus_only">Printing needs the campus network — this address only works on campus.</string>
 
     <!-- Shell -->

@@ -40,6 +40,6 @@ fun Throwable.friendly(context: Context): String = when {
     // A plain-HTTP address is a configuration mistake, not a network fault —
     // say so instead of leaking OkHttp's policy string at the user.
     message?.contains("CLEARTEXT", ignoreCase = true) == true ->
-        context.getString(R.string.error_cleartext, AppConfig.baseUrl)
+        context.getString(R.string.error_cleartext, AppConfig.baseUrl, message)
     else -> context.getString(R.string.error_network, message ?: this::class.java.simpleName)
 }
