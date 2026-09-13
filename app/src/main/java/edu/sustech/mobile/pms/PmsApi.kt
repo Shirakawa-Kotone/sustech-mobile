@@ -19,6 +19,13 @@ import java.io.File
 import java.io.IOException
 
 /**
+ * Server phrases that mean "your session is gone" rather than "your request was
+ * wrong". They arrive inside a normal error envelope, so they have to be
+ * recognised and turned into a silent re-login — never shown as a network error.
+ */
+private val STALE_MARKERS = listOf("请用户重新登录", "重新登录", "无效会话", "未登录", "请登录", "用户未登录")
+
+/**
  * PMS failures are [edu.sustech.mobile.core.ApiException]s; the alias keeps the
  * call sites readable inside this package.
  */
@@ -42,10 +49,18 @@ class PmsApi(
     // -- Endpoints the site exposes -------------------------------------------
 
     /** POST /client/Auth/Check — who is signed in. Also the session probe. */
-    fun check(): AccountInfo = withRelogin {
+    fun check(): AccountInfo = withRelogin { checkSession() }
+
+    /**
+     * The same call with no re-login wrapper.
+     *
+     * The sign-in logic itself probes the session with this: going through
+     * [check] there would re-enter the re-login path and recurse.
+     */
+    fun checkSession(): AccountInfo {
         val body = postJson("/api/client/Auth/Check", JSONObject())
         val result = body.optJSONObject("result") ?: JSONObject()
-        return@withRelogin AccountInfo(
+        return AccountInfo(
             trueName = result.optString("szTrueName", ""),
             logonName = result.optString("szLogonName", ""),
             raw = result,
@@ -189,7 +204,11 @@ class PmsApi(
         }
         val code = json.optInt("code", -1)
         if (code != 0) {
-            throw PmsException("${json.optString("message", "code=$code")} (HTTP ${answer.code})")
+            val message = json.optString("message", "code=$code")
+            if (STALE_MARKERS.any { message.contains(it) }) {
+                throw PmsException("Print session expired", signInRequired = true)
+            }
+            throw PmsException("$message (HTTP ${answer.code})")
         }
         return json.optString("message", "").ifEmpty { "ok" }
     }
@@ -244,7 +263,15 @@ class PmsApi(
         val json = parseOrNull(answer.text)
             ?: throw PmsException("Non-JSON response — session gone", signInRequired = true)
         val code = json.optInt("code", -1)
-        if (code != 0) throw PmsException(json.optString("message", "code=$code"))
+        if (code != 0) {
+            val message = json.optString("message", "code=$code")
+            // 无效会话 / 未登录 arrive as a normal error envelope but mean the
+            // session is gone, which the caller must handle as a re-login.
+            if (STALE_MARKERS.any { message.contains(it) }) {
+                throw PmsException("Print session expired", signInRequired = true)
+            }
+            throw PmsException(message)
+        }
         return json.optJSONArray("result") ?: JSONArray()
     }
 
@@ -270,6 +297,18 @@ class PmsApi(
     private data class HttpAnswer(val code: Int, val text: String)
 
     private fun execute(request: Request, allowErrorStatus: Boolean = false): HttpAnswer {
+        // Campus networks drop TLS handshakes routinely ("connection closed");
+        // one retry turns those into a non-event instead of an error on screen.
+        return try {
+            executeOnce(request, allowErrorStatus)
+        } catch (e: ApiException) {
+            if (e.message?.contains("close", ignoreCase = true) != true) throw e
+            Thread.sleep(700)
+            executeOnce(request, allowErrorStatus)
+        }
+    }
+
+    private fun executeOnce(request: Request, allowErrorStatus: Boolean): HttpAnswer {
         try {
             http.newCall(request).execute().use { response ->
                 val text = response.body?.string().orEmpty()

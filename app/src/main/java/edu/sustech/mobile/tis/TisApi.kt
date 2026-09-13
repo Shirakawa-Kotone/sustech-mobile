@@ -14,12 +14,18 @@ import org.json.JSONObject
 import java.io.IOException
 
 /**
+ * Server phrases that mean "your session is gone" rather than "your request was
+ * wrong". They arrive inside a normal error envelope, so they have to be
+ * recognised and turned into a silent re-login — never shown as a network error.
+ */
+private val STALE_MARKERS = listOf("请用户重新登录", "重新登录", "无效会话", "未登录", "请登录", "用户未登录")
+
+/**
  * The TIS read surface the app uses — timetable, courses, grades, exams.
  *
  * TIS is CAS-fronted: there is no login API here. The session arrives as
- * cookies captured by [edu.sustech.mobile.ui.WebLoginActivity] after the user
- * signs in on the real page, and rides along on every request through the
- * shared cookie jar.
+ * cookies gathered by [CasLogin] from the stored school account and rides along
+ * on every request through the shared cookie jar.
  *
  * Writes (course selection, bidding, evaluation) are deliberately absent — the
  * web client owns those, and they are irreversible.
@@ -150,9 +156,10 @@ class TisApi(private val http: OkHttpClient) {
         } catch (e: IOException) {
             throw ApiException(e.message ?: "network error")
         }
-        // A stale session makes TIS answer with an HTML page or a JSON blob
-        // that tells the user to log in again — never a data payload.
-        if (text.contains("请用户重新登录") || text.contains("重新登录")) {
+        // A stale session makes TIS answer with an HTML page, a JSON blob, or a
+        // terse "无效会话，未登录" inside an otherwise fine envelope — never a data
+        // payload. All of those mean one thing: sign in again, silently.
+        if (STALE_MARKERS.any { text.contains(it) }) {
             throw ApiException("TIS session expired", signInRequired = true)
         }
         return text

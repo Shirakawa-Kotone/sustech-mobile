@@ -166,6 +166,12 @@ class Ui:
         self.shell("input", "text", value.replace(" ", "%s"))
         time.sleep(1.5)
 
+    def swipe_down(self, rid: str, settle: int = 4) -> None:
+        """Drag downwards inside a container — the gesture pull-to-refresh needs."""
+        x, y = self.find(rid=rid)
+        self.shell("input", "swipe", str(x), str(max(40, y - 250)), str(x), str(y + 250), "400")
+        time.sleep(settle)
+
     def texts(self) -> list[str]:
         return [node.get("text") or "" for node in self.tree().iter("node") if node.get("text")]
 
@@ -243,33 +249,38 @@ def ensure_signed_in(ui: Ui, user: str, password: str) -> None:
 
     The app signs in by itself from the stored school account
     (`tools/inject_session.py --creds`), so the login screen should not appear
-    at all. When it does, the harness either types the given credentials or
-    fails loudly — a silent empty screen is the one outcome that must not pass.
+    at all. A cold start draws nothing for a moment, so this waits for the shell
+    *or* the sign-in screen before deciding anything — racing a slow start used
+    to look like "no bottom bar".
     """
     ui.dismiss_dialogs()
     ui.start_app()
-    try:
-        ui.find(rid="input_username", timeout=6)
-    except RuntimeError:
-        return  # already signed in — the expected path
 
-    # The fields are on screen while the app signs in silently from its stored
-    # account (CAS takes a few seconds), so wait for it to leave on its own
-    # before concluding that a human is needed.
-    for _ in range(45):
-        if not ui.visible("input_username") or ui.visible("bottom_nav"):
+    deadline = time.time() + 90
+    while time.time() < deadline:
+        if ui.visible("bottom_nav") or ui.visible("nav_services"):
             return
+        if ui.visible("input_username"):
+            break
         time.sleep(2)
 
-    if not user or not password:
-        screen = " | ".join(t for t in ui.texts() if len(t) > 12)[:300]
-        raise RuntimeError(
-            "the app is parked on the sign-in screen: no account is configured on the "
-            "device, or the stored one was refused. "
-            f"Run: python3 tools/inject_session.py --creds  (screen: {screen})",
-        )
-    sign_in(ui, user, password)
-    to_shell(ui)
+    if ui.visible("input_username"):
+        # The fields are on screen while the app signs in silently; give it the
+        # time to finish before concluding that a human is needed.
+        if wait_for_signed_in(ui, seconds=90):
+            return
+        if not user or not password:
+            screen = " | ".join(t for t in ui.texts() if len(t) > 12)[:300]
+            raise RuntimeError(
+                "the app is parked on the sign-in screen: no account is configured on the "
+                "device, or the stored one was refused. "
+                f"Run: python3 tools/inject_session.py --creds  (screen: {screen})",
+            )
+        sign_in(ui, user, password)
+        to_shell(ui)
+        return
+
+    raise RuntimeError("the app came up with neither the shell nor a sign-in screen")
 
 
 def to_shell(ui: Ui, attempts: int = 3) -> None:
@@ -312,6 +323,32 @@ def open_service(ui: Ui, title: str) -> None:
 
 def tab(ui: Ui, title: str) -> None:
     ui.tap(text=title, exact=True, settle=3)
+
+
+def scenario_refresh(ui: Ui, user: str, password: str) -> int:
+    """Pull-to-refresh must reload, on the dashboard and on a list screen."""
+    failures = []
+    ensure_signed_in(ui, user, password)
+    ui.tap(rid="nav_today", settle=3)
+    if not ui.visible("today_swipe"):
+        failures.append("the dashboard is not inside a pull-to-refresh container")
+    else:
+        ui.swipe_down("today_swipe")
+        ui.screenshot("60-refresh-today")
+        texts = ui.texts()
+        if any("Loading" in text for text in texts):
+            failures.append("the dashboard stayed on its loading state after the pull")
+        if not any(text.startswith("Week") for text in texts):
+            failures.append(f"the week number vanished after the pull: {texts}")
+
+    open_service(ui, "Courses & grades")
+    tab(ui, "Courses")
+    ui.swipe_down("swipe")
+    ui.screenshot("61-refresh-list")
+    rows = ui.wait_count("course_name", minimum=1, timeout=30)
+    if rows < 1:
+        failures.append("the course list came back empty after the pull")
+    return report(failures)
 
 
 def report(failures: list[str]) -> int:
@@ -558,6 +595,7 @@ def main() -> int:
         "pms-upload-html": lambda: scenario_pms_upload(
             ui, args.file, args.user, args.password, tag="-html"
         ),
+        "refresh": lambda: scenario_refresh(ui, args.user, args.password),
         "pms-upload-redirect-http": lambda: scenario_pms_upload(
             ui, args.file, args.user, args.password, tag="-redir"
         ),

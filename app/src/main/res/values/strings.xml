@@ -74,7 +74,8 @@
     <!-- Today -->
     <string name="today_week">Week %1$d</string>
     <string name="today_week_unknown">Week —</string>
-    <string name="today_classes">Today\'s classes</string>
+    <string name="today_next_up">Next up</string>
+    <string name="today_none_left">Nothing left today.</string>
     <string name="today_no_classes">No classes today.</string>
     <string name="today_weather">Weather</string>
     <string name="today_aqi">AQI</string>

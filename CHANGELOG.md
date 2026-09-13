@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.5 — 2026-09-13
+
+- **Printing signs in through CAS first, like the website does.** Reported as
+  "only pms don't work": the print back end links the CAS identity to the print
+  account (creating one on first visit), which is the route the Python client's
+  refresh takes as well. The site's own RSA password login stays as the fallback,
+  and a local test server skips CAS entirely. One retry now covers a dropped TLS
+  handshake ("connection closed"), which campus networks produce routinely.
+- **"无效会话，未登录" no longer reaches the screen.** TIS and the print API
+  answer a dead session with that phrase inside an otherwise normal error
+  envelope; every such marker now triggers the silent re-login instead of
+  surfacing as a Chinese "Network error".
+- **The dashboard refreshes when pulled.** It had no pull-to-refresh container at
+  all (only the list screens did), so the gesture did nothing. New `refresh`
+  scenario drags for real and asserts the data reloads on both the dashboard and
+  a list.
+- **The dashboard shows one meeting — "Next up"** — instead of the whole day:
+  time and course on the first line, teacher, room and weeks on the second.
+- **Odd and even weeks are now visible everywhere**: "Weeks 3-17 (odd weeks)",
+  "Weeks 2-15 (even weeks)", and rows that carry no week bitmap (the single-week
+  endpoint) fall back to parsing the range out of the schedule text instead of
+  counting as every week. Because the dashboard filters by the bitmap, a
+  biweekly lab no longer appears in a week it does not run.
+- Harness: sign-in waits for the shell *or* the sign-in screen, so a slow cold
+  start no longer looks like a missing bottom bar.
+
 ## 0.3.4 — 2026-09-13
 
 - **Fixed: an upload could still fail with a cleartext error although the server

@@ -2,6 +2,7 @@ package edu.sustech.mobile.tis
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Calendar
 
 // -- Wire constants -----------------------------------------------------------
 
@@ -18,6 +19,29 @@ object PeriodTimes {
     )
 
     fun of(period: Int): String = table[period] ?: ""
+
+    private val slots: List<Triple<Int, Int, Int>> = table.entries.sortedBy { it.key }.map { (period, text) ->
+        Triple(period, toMinutes(text.substringBefore('-')), toMinutes(text.substringAfter('-')))
+    }
+
+    private fun toMinutes(hhmm: String): Int {
+        val hour = hhmm.substringBefore(':').toIntOrNull() ?: 0
+        val minute = hhmm.substringAfter(':', "0").toIntOrNull() ?: 0
+        return hour * 60 + minute
+    }
+
+    /**
+     * Period running at [now], or the next one when the clock sits between
+     * periods; one past the last period once the teaching day is over. Callers
+     * compare it against `periodTo` to answer "is this still ahead of me?".
+     */
+    fun currentPeriod(now: Calendar): Int {
+        val minutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        for ((period, _, end) in slots) {
+            if (minutes < end) return period
+        }
+        return slots.size + 1
+    }
 
     /** "13:00-14:45" for a period range, "" when the range is unknown. */
     fun range(from: Int, to: Int): String {
@@ -101,18 +125,44 @@ data class ClassEntry(
     val periodTo: Int,
     val weeks: List<Int>,
 ) {
-    fun meets(week: Int): Boolean = weeks.contains(week)
+    /**
+     * Does this meeting happen in [week]?
+     *
+     * The `ZC` bitmap is the truth when it is present. Some rows (and every row
+     * of the single-week endpoint) carry no bitmap at all, so the week range in
+     * the schedule text is parsed as a fallback — without it, a lab that only
+     * meets on even weeks looks like it meets every week.
+     */
+    fun meets(week: Int): Boolean {
+        val known = effectiveWeeks
+        return known.isEmpty() || known.contains(week)
+    }
 
-    /** First–last week, with a marker when the bitmap has gaps (odd/even weeks). */
+    /** Weeks the bitmap gives, or the weeks parsed out of the schedule text. */
+    val effectiveWeeks: List<Int>
+        get() = if (weeks.isNotEmpty()) weeks else weeksFromLabel
+
+    /** Weeks parsed from the "N-M周(单|双)" label when the bitmap is missing. */
+    private var weeksFromLabel: List<Int> = emptyList()
+
+    /** First–last week plus the parity, because "2-15" alone hides odd/even. */
     private var weeksLabel: String = ""
 
     val weekRangeText: String
         get() {
-            if (weeks.isEmpty()) return weeksLabel
-            val first = weeks.first()
-            val last = weeks.last()
-            val contiguous = weeks.size == last - first + 1
-            return if (contiguous) "$first-$last" else "$first-$last (alternating)"
+            val known = effectiveWeeks
+            if (known.isEmpty()) return weeksLabel
+            val first = known.first()
+            val last = known.last()
+            val contiguous = known.size == last - first + 1
+            val parity = when {
+                known.all { it % 2 == 1 } -> "odd weeks"
+                known.all { it % 2 == 0 } -> "even weeks"
+                !contiguous -> "alternating"
+                else -> ""
+            }
+            val range = "$first-$last"
+            return if (parity.isEmpty()) range else "$range ($parity)"
         }
 
     val timeText: String get() = PeriodTimes.range(periodFrom, periodTo)
@@ -156,8 +206,31 @@ data class ClassEntry(
                 periodTo = to,
                 weeks = weeksFromBitmap(raw.optString("ZC", "")),
             )
-            entry.weeksLabel = weeksTextFromLabel(bracketsEn) .ifEmpty { weeksTextFromLabel(brackets) }
+            entry.weeksLabel = weeksTextFromLabel(bracketsEn).ifEmpty { weeksTextFromLabel(brackets) }
+            entry.weeksFromLabel =
+                parseWeeks(brackets.firstOrNull { it.contains("周") } ?: bracketsEn.firstOrNull { it.contains("周") } ?: "")
             return entry
+        }
+
+        /**
+         * Weeks out of a "1-16周(单)" style label: plain ranges, comma lists and
+         * the odd/even markers the labs use. Empty when there is nothing to read.
+         */
+        fun parseWeeks(label: String): List<Int> {
+            if (label.isEmpty()) return emptyList()
+            val odd = label.contains("单")
+            val even = label.contains("双")
+            val weeks = sortedSetOf<Int>()
+            for (match in Regex("(\\d+)\\s*(?:-\\s*(\\d+))?").findAll(label)) {
+                val from = match.groupValues[1].toIntOrNull() ?: continue
+                val to = match.groupValues[2].toIntOrNull() ?: from
+                for (week in from..to) {
+                    if (odd && week % 2 == 0) continue
+                    if (even && week % 2 == 1) continue
+                    weeks.add(week)
+                }
+            }
+            return weeks.toList()
         }
 
         /**
