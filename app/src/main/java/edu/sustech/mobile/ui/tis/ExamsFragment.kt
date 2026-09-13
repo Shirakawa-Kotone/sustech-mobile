@@ -11,6 +11,8 @@ import edu.sustech.mobile.ui.ListFragment
 /** Exams — the published exam schedule; TIS returns an empty list until it is out. */
 class ExamsFragment : ListFragment<ExamRecord>(R.layout.fragment_list) {
 
+    override fun cachePrefix() = "tis.exams"
+
     override fun rowLayout() = R.layout.item_tis_exam
 
     override fun emptyText() = getString(R.string.tis_exams_empty)

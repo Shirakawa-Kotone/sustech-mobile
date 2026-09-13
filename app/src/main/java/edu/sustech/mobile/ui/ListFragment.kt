@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import edu.sustech.mobile.R
+import edu.sustech.mobile.core.Cache
 import edu.sustech.mobile.core.friendly
 import edu.sustech.mobile.core.runIo
 
@@ -79,7 +80,10 @@ abstract class ListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRes),
         adapter = SimpleAdapter(rowLayout()) { row, item, position -> bindRow(row, item, position) }
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = adapter
-        swipe.setOnRefreshListener { load() }
+        // A pull or the toolbar button means "fetch now"; opening the screen
+        // just shows what this session already knows (see core/Cache), which is
+        // what keeps the print tabs from re-asking on every visit.
+        swipe.setOnRefreshListener { load(force = true) }
         onReady(view)
         load()
     }
@@ -87,9 +91,13 @@ abstract class ListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRes),
     /** Hook for subclasses that need extra view wiring before the first load. */
     protected open fun onReady(view: View) = Unit
 
-    override fun refresh() = load()
+    override fun refresh() = load(force = true)
 
-    protected fun load() {
+    /** Cache keys a forced reload must drop before fetching. */
+    protected open fun cachePrefix(): String = ""
+
+    protected fun load(force: Boolean = false) {
+        if (force) Cache.invalidate(cachePrefix())
         swipe.isRefreshing = true
         runIo(
             block = { fetch() },

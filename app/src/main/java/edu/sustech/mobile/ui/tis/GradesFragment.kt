@@ -15,6 +15,8 @@ import edu.sustech.mobile.ui.ListFragment
  */
 class GradesFragment : ListFragment<GradeRecord>(R.layout.fragment_tis_week) {
 
+    override fun cachePrefix() = "tis.grades"
+
     override fun rowLayout() = R.layout.item_tis_grade
 
     override fun emptyText() = getString(R.string.tis_grades_empty)

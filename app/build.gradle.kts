@@ -4,9 +4,13 @@ plugins {
 }
 
 // The server the app defaults to. Override for off-campus testing:
-//   ./gradlew assembleDebug -PpmsBaseUrl=http://10.0.2.2:8080
-val defaultServerUrl: String = (project.findProperty("pmsBaseUrl") as String?)?.trim().orEmpty()
-    .ifEmpty { "https://pms.sustech.edu.cn" }
+//   ./gradlew assembleDebug -PserverUrl=http://10.0.2.2:8080
+val defaultServerUrl: String =
+    (
+        project.findProperty("serverUrl")?.toString()
+            ?: project.findProperty("pmsBaseUrl")?.toString()
+            ?: "https://pms.sustech.edu.cn"
+        ).trim()
 
 android {
     namespace = "edu.sustech.mobile"
@@ -16,8 +20,8 @@ android {
         applicationId = "edu.sustech.mobile"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.3.5"
+        versionCode = 8
+        versionName = "0.3.6"
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"$defaultServerUrl\"")
     }
 

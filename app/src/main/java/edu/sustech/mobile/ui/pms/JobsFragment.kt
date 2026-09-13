@@ -20,6 +20,8 @@ import edu.sustech.mobile.ui.ListFragment
  */
 class JobsFragment : ListFragment<PrintJob>(R.layout.fragment_jobs) {
 
+    override fun cachePrefix() = "pms.jobs"
+
     override fun rowLayout() = R.layout.item_print_job
 
     override fun emptyText() = getString(R.string.jobs_empty)

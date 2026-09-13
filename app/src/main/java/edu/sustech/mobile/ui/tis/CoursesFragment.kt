@@ -17,6 +17,8 @@ import edu.sustech.mobile.ui.ListFragment
  */
 class CoursesFragment : ListFragment<CourseRow>(R.layout.fragment_list) {
 
+    override fun cachePrefix() = "tis.schedule"
+
     override fun rowLayout() = R.layout.item_tis_course
 
     override fun emptyText() = getString(R.string.tis_courses_empty)

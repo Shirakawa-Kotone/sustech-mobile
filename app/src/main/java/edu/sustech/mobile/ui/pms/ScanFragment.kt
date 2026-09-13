@@ -13,6 +13,8 @@ import edu.sustech.mobile.ui.ListFragment
 /** Scans — documents waiting for pickup, with per-document delete. */
 class ScanFragment : ListFragment<ScanJob>(R.layout.fragment_list) {
 
+    override fun cachePrefix() = "pms.scans"
+
     override fun rowLayout() = R.layout.item_scan_job
 
     override fun emptyText() = getString(R.string.scan_empty)

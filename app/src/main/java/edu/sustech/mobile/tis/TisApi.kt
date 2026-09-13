@@ -1,6 +1,7 @@
 package edu.sustech.mobile.tis
 
 import edu.sustech.mobile.core.ApiException
+import edu.sustech.mobile.core.Cache
 import edu.sustech.mobile.core.Hosts
 import edu.sustech.mobile.sso.CasLogin
 import edu.sustech.mobile.sso.Session
@@ -35,7 +36,11 @@ class TisApi(private val http: OkHttpClient) {
     // -- Reads ----------------------------------------------------------------
 
     /** POST /component/querydangqianxnxq — the active term. */
-    fun currentSemester(): Semester = withRelogin {
+    fun currentSemester(): Semester = Cache.get("tis.semester", Cache.TTL_SEMESTER) {
+        currentSemesterUncached()
+    }
+
+    private fun currentSemesterUncached(): Semester = withRelogin {
         val body = postForm("/component/querydangqianxnxq", emptyMap())
         val json = parse(body) ?: throw ApiException("TIS returned a non-JSON semester", signInRequired = true)
         if (!json.has("XN") || !json.has("XQ")) {
@@ -56,7 +61,10 @@ class TisApi(private val http: OkHttpClient) {
     }
 
     /** POST /xszykb/queryxszykbzhou — personal timetable for one week. */
-    fun weekSchedule(week: Int, semester: Semester = currentSemester()): List<ClassEntry> = withRelogin {
+    fun weekSchedule(week: Int, semester: Semester = currentSemester()): List<ClassEntry> =
+        Cache.get("tis.week.$week", Cache.TTL_LIST) { weekScheduleUncached(week, semester) }
+
+    private fun weekScheduleUncached(week: Int, semester: Semester): List<ClassEntry> = withRelogin {
         val body = postForm(
             "/xszykb/queryxszykbzhou",
             mapOf("xn" to semester.year, "xq" to semester.term, "zc" to week.toString()),
@@ -65,7 +73,10 @@ class TisApi(private val http: OkHttpClient) {
     }
 
     /** POST /xszykb/queryxszykbzong — the whole term, every meeting. */
-    fun semesterSchedule(semester: Semester = currentSemester()): List<ClassEntry> = withRelogin {
+    fun semesterSchedule(semester: Semester = currentSemester()): List<ClassEntry> =
+        Cache.get("tis.schedule", Cache.TTL_LIST) { semesterScheduleUncached(semester) }
+
+    private fun semesterScheduleUncached(semester: Semester): List<ClassEntry> = withRelogin {
         val body = postForm(
             "/xszykb/queryxszykbzong",
             mapOf("xn" to semester.year, "xq" to semester.term),
@@ -79,7 +90,9 @@ class TisApi(private val http: OkHttpClient) {
      * `pageSize` is 500 because the endpoint pages, and one page is enough for
      * a whole degree; the Python client does the same.
      */
-    fun grades(): List<GradeRecord> = withRelogin {
+    fun grades(): List<GradeRecord> = Cache.get("tis.grades", Cache.TTL_LIST) { gradesUncached() }
+
+    private fun gradesUncached(): List<GradeRecord> = withRelogin {
         val payload = JSONObject()
             .put("xn", JSONObject.NULL)
             .put("xq", JSONObject.NULL)
@@ -95,7 +108,9 @@ class TisApi(private val http: OkHttpClient) {
     }
 
     /** POST /component/queryKsxxByXs — student exam schedule (empty until published). */
-    fun exams(): List<ExamRecord> = withRelogin {
+    fun exams(): List<ExamRecord> = Cache.get("tis.exams", Cache.TTL_LIST) { examsUncached() }
+
+    private fun examsUncached(): List<ExamRecord> = withRelogin {
         val body = postJson("/component/queryKsxxByXs", JSONObject())
         val json = parseArray(body) ?: throw ApiException("TIS returned no exam list", signInRequired = true)
         return@withRelogin (0 until json.length())
@@ -105,6 +120,37 @@ class TisApi(private val http: OkHttpClient) {
 
     /** True when the stored session is still good (cheap probe). */
     fun isSignedIn(): Boolean = runCatching { currentSemester() }.isSuccess
+
+    /**
+     * POST /component/queryKbjg — the semester's teaching grid: which clock times
+     * each period runs at. The table is not the same every year, and the values
+     * this app used to hard-code were the exam-hall ones, so it asks TIS and
+     * hands the answer to [PeriodTimes].
+     */
+    fun loadSlotTimes(semester: Semester = currentSemester(), week: Int? = null): Map<Int, Pair<String, String>> =
+        Cache.get("tis.slots", Cache.TTL_SLOTS) {
+            withRelogin {
+                val body = postForm(
+                    "/component/queryKbjg",
+                    mapOf(
+                        "xn" to semester.year,
+                        "xq" to semester.term,
+                        "zc" to (week ?: currentWeek() ?: 1).toString(),
+                    ),
+                )
+                val content = parse(body)?.optJSONArray("content") ?: JSONArray()
+                val grid = LinkedHashMap<Int, Pair<String, String>>()
+                for (index in 0 until content.length()) {
+                    val row = content.optJSONObject(index) ?: continue
+                    val slot = row.optString("xj", "").toIntOrNull() ?: continue
+                    val from = row.optString("kssj", "")
+                    val to = row.optString("jssj", "")
+                    if (from.isNotEmpty() && to.isNotEmpty()) grid[slot] = from to to
+                }
+                PeriodTimes.useFetched(grid)
+                grid
+            }
+        }
 
     /**
      * Retries once after a silent CAS re-login when TIS says the session is

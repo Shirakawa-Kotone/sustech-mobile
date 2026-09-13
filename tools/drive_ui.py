@@ -325,6 +325,36 @@ def tab(ui: Ui, title: str) -> None:
     ui.tap(text=title, exact=True, settle=3)
 
 
+def scenario_no_signin(ui: Ui) -> int:
+    """Fresh install: the sign-in screen must offer a way in without an account."""
+    failures = []
+    ui.dismiss_dialogs()
+    ui.start_app()
+    try:
+        ui.find(rid="input_username", timeout=20)
+    except RuntimeError:
+        failures.append("the sign-in screen did not appear on a cleared install")
+        return report(failures)
+    ui.screenshot("70-signin-with-skip")
+    try:
+        ui.tap(rid="btn_skip", settle=4)
+    except RuntimeError:
+        failures.append("there is no 'continue without signing in' button")
+        return report(failures)
+    if not ui.visible("bottom_nav"):
+        failures.append("skipping sign-in did not reach the shell")
+    ui.screenshot("71-shell-without-account")
+    ui.tap(rid="nav_services", settle=2)
+    ui.tap(text="Courses & grades", exact=True, settle=5)
+    ui.screenshot("72-service-without-account")
+    # The screen must say it needs an account — the button renders as "SIGN IN",
+    # so compare case-insensitively.
+    texts = " ".join(ui.texts()).lower()
+    if "sign in" not in texts:
+        failures.append("the service screen does not ask for the account: " + texts[:200])
+    return report(failures)
+
+
 def scenario_refresh(ui: Ui, user: str, password: str) -> int:
     """Pull-to-refresh must reload, on the dashboard and on a list screen."""
     failures = []
@@ -577,7 +607,11 @@ def scenario_tis_live(ui: Ui) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scenario", default="shell")
+    parser.add_argument(
+        "--scenario",
+        default="tis-live",
+        help="tis-live (CAS, works off campus) is the default; the pms-* ones need the mock",
+    )
     parser.add_argument("--serial")
     parser.add_argument("--user", default="", help="only used when the app has no account stored")
     parser.add_argument("--password", default="", help="only used when the app has no account stored")
@@ -596,6 +630,7 @@ def main() -> int:
             ui, args.file, args.user, args.password, tag="-html"
         ),
         "refresh": lambda: scenario_refresh(ui, args.user, args.password),
+        "no-signin": lambda: scenario_no_signin(ui),
         "pms-upload-redirect-http": lambda: scenario_pms_upload(
             ui, args.file, args.user, args.password, tag="-redir"
         ),

@@ -3,6 +3,7 @@ package edu.sustech.mobile.sso
 import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.core.AppConfig
+import edu.sustech.mobile.core.Cache
 import edu.sustech.mobile.core.Credentials
 import edu.sustech.mobile.core.Hosts
 import edu.sustech.mobile.pms.PmsAuth
@@ -107,6 +108,9 @@ object Session {
         if (!Credentials.configured || reloginInFlight) return null
         reloginInFlight = true
         return try {
+            // A new session can belong to a different account; nothing cached
+            // from the old one may survive it.
+            Cache.invalidate("tis.")
             CasLogin.login(TIS_SERVICE, Credentials.sid, Credentials.password, xhr = true)
             App.tis.currentSemester()
         } catch (e: ApiException) {
@@ -139,6 +143,7 @@ object Session {
         if (!AppConfig.isLocalHost(Hosts.host(AppConfig.baseUrl))) {
             try {
                 CasLogin.login(PRINT_SERVICE, Credentials.sid, Credentials.password, xhr = false)
+                Cache.invalidate("pms.")
                 if (printSessionAlive()) return Access.ACCEPTED
                 note("printing", "CAS sign-in did not produce a print session")
             } catch (e: ApiException) {

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.6 — 2026-09-13
+
+- **Fixed: every clock time was wrong.** The app carried the exam-hall period
+  table (10:00-10:50, 13:00-13:50 …) instead of the teaching grid. It now reads
+  the real grid from `component/queryKbjg` (period 1-2 = 08:00-09:50, 3-4 =
+  10:20-12:10, 5-6 = 14:00-15:50, 9-10 = 19:00-20:50 …), caches it, and falls
+  back to those values rather than the old ones.
+- **Fixed: the `ZC` week bitmap was read one week off.** It is zero-padded, so
+  index *i* is week *i*; reading it as *i+1* shifted every course a week and made
+  a "1-15单周" lab show up in week 2 — reported as "amse still in this week".
+  Odd/even labs now appear only in the weeks they run.
+- **"This week" is built from the whole-term timetable**, filtered by that bitmap.
+  The single-week endpoint answers with the week's rows whether or not the course
+  runs in it, which is why the lab kept appearing.
+- **Less fetching, so the screens stop feeling slow**: week/term timetables,
+  grades, exams, the period grid, print points and scan/queue lists are cached
+  in memory (20 s – 30 min by kind). Opening a screen or resuming one shows what
+  the session already knows; pull-to-refresh and the toolbar button still fetch
+  immediately, and a delete or an upload drops the affected entry. Sign-out
+  clears everything.
+- **A way in without an account**: "Continue without signing in" on the sign-in
+  screen opens the shell; the catalog and campus weather work without a session,
+  and each service screen says it needs one.
+- The server override is now `-PserverUrl=` (the old `-PpmsBaseUrl=` still
+  works), the harness defaults to the CAS-backed `tis-live` scenario instead of a
+  print one, and a `no-signin` scenario covers the new button.
+
 ## 0.3.5 — 2026-09-13
 
 - **Printing signs in through CAS first, like the website does.** Reported as

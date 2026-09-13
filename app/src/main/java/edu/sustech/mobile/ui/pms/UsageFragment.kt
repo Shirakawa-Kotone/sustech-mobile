@@ -28,6 +28,8 @@ class UsageFragment : ListFragment<UsageRecord>(R.layout.fragment_usage) {
     private var page = 1
     private var totalPages = 1
 
+    override fun cachePrefix() = "pms.usage"
+
     override fun rowLayout() = R.layout.item_usage
 
     override fun emptyText() = getString(R.string.usage_empty)

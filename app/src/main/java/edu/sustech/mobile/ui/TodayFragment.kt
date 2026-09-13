@@ -9,6 +9,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.button.MaterialButton
 import edu.sustech.mobile.R
 import edu.sustech.mobile.core.App
+import edu.sustech.mobile.core.Cache
 import edu.sustech.mobile.core.runIo
 import edu.sustech.mobile.tis.ClassEntry
 import edu.sustech.mobile.tis.PeriodTimes
@@ -33,7 +34,10 @@ class TodayFragment : Fragment(R.layout.fragment_today), Refreshable {
         view.findViewById<MaterialButton>(R.id.today_sign_in).setOnClickListener {
             startActivity(Intent(requireContext(), LoginActivity::class.java))
         }
-        view.findViewById<SwipeRefreshLayout>(R.id.today_swipe).setOnRefreshListener { load() }
+        view.findViewById<SwipeRefreshLayout>(R.id.today_swipe).setOnRefreshListener {
+            Cache.invalidate("tis.")
+            load()
+        }
         load()
     }
 
@@ -81,6 +85,9 @@ class TodayFragment : Fragment(R.layout.fragment_today), Refreshable {
             },
             onOk = { (semester, currentWeek, entries) ->
                 swipe?.isRefreshing = false
+                // TIS owns the period times; ask once and the card shows the
+                // clock hours the rooms actually use.
+                runCatching { App.tis.loadSlotTimes(semester, currentWeek) }
                 week?.text = if (currentWeek == null) getString(R.string.today_week_unknown)
                 else getString(R.string.today_week, currentWeek)
                 weekday?.text =

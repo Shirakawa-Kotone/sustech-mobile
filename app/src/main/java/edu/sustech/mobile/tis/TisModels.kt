@@ -11,12 +11,28 @@ import java.util.Calendar
  * Periods, not clock hours, are what TIS sends — everything else is derived.
  */
 object PeriodTimes {
-    private val table = mapOf(
-        1 to "08:00-08:50", 2 to "08:55-09:45", 3 to "10:00-10:50", 4 to "10:55-11:45",
-        5 to "13:00-13:50", 6 to "13:55-14:45", 7 to "15:00-15:50", 8 to "15:55-16:45",
-        9 to "17:00-17:50", 10 to "17:55-18:45", 11 to "19:00-19:50", 12 to "19:55-20:45",
-        13 to "21:00-21:50",
+    /**
+     * Fallback for the teaching grid, matching `component/queryKbjg` for
+     * 2026Fall. The live table wins: [useFetched] replaces this as soon as the
+     * app has asked TIS, because these times change between semesters and the
+     * old exam-hall grid (10:00-10:50, 13:00-13:50, …) was simply wrong.
+     */
+    private val defaults = mapOf(
+        1 to "08:00-08:50", 2 to "09:00-09:50", 3 to "10:20-11:10", 4 to "11:20-12:10",
+        5 to "14:00-14:50", 6 to "15:00-15:50", 7 to "16:20-17:10", 8 to "17:20-18:10",
+        9 to "19:00-19:50", 10 to "20:00-20:50", 11 to "21:00-21:50",
     )
+
+    @Volatile
+    private var table: Map<Int, String> = defaults
+
+    /** Adopt the grid TIS reports for the current semester. */
+    fun useFetched(fetched: Map<Int, Pair<String, String>>) {
+        if (fetched.isEmpty()) return
+        table = fetched.mapValues { (_, span) -> "${span.first}-${span.second}" }
+    }
+
+    fun isFetched(): Boolean = table !== defaults
 
     fun of(period: Int): String = table[period] ?: ""
 
@@ -254,10 +270,19 @@ data class ClassEntry(
         fun codeFromTaskId(taskId: String): String =
             Regex("^\\d{4}-\\d{4}-\\d-(.+?)-\\d+$").find(taskId)?.groupValues?.get(1) ?: ""
 
+        /**
+         * Weeks out of the `ZC` bitmap.
+         *
+         * The bitmap is zero-padded and **index i is week i**: for a course whose
+         * schedule text says "1-16周" the ones sit at indices 1..16, and an
+         * odd-week lab ("1-15单周") has them at 1,3,5…15. Reading it as week
+         * i+1 shifts every course a week and makes a biweekly lab look like it
+         * meets in the wrong week.
+         */
         fun weeksFromBitmap(bitmap: String): List<Int> {
             val out = ArrayList<Int>()
             for ((index, char) in bitmap.withIndex()) {
-                if (char == '1') out.add(index + 1)
+                if (char == '1' && index > 0) out.add(index)
             }
             return out
         }

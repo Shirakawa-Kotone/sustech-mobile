@@ -8,6 +8,8 @@
     <string name="login_username">Student ID</string>
     <string name="login_password_field">Password</string>
     <string name="login_submit">Sign in</string>
+    <string name="login_skip">Continue without signing in</string>
+    <string name="login_skip_hint">Courses and printing ask for the account again when you open them.</string>
     <string name="login_note">Your account is stored on this phone only and reused for every service, so this is the one time you sign in. Sessions renew themselves; nothing is sent anywhere except the university\'s own sign-in.</string>
     <string name="login_missing_fields">Enter your student ID and password.</string>
     <string name="login_rejected">Sign-in was refused — check your student ID and password.</string>

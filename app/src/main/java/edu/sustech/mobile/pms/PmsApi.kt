@@ -2,6 +2,7 @@ package edu.sustech.mobile.pms
 
 import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.AppConfig
+import edu.sustech.mobile.core.Cache
 import edu.sustech.mobile.core.Hosts
 import edu.sustech.mobile.sso.Session
 import okhttp3.HttpUrl
@@ -68,19 +69,28 @@ class PmsApi(
     }
 
     /** GET /client/Station/GetSrvList — the print-point dropdown. */
-    fun serverGroups(): List<ServerGroup> = withRelogin {
+    fun serverGroups(): List<ServerGroup> =
+        Cache.get("pms.groups", Cache.TTL_SEMESTER) { serverGroupsUncached() }
+
+    private fun serverGroupsUncached(): List<ServerGroup> = withRelogin {
         val array = getArray("/api/client/Station/GetSrvList", mapOf("timestamp" to "0"))
         return@withRelogin (0 until array.length()).map { ServerGroup.from(array.getJSONObject(it)) }
     }
 
     /** GET /client/Station/GetList — every printer / copier / scanner. */
-    fun stations(): List<Station> = withRelogin {
+    fun stations(): List<Station> =
+        Cache.get("pms.stations", Cache.TTL_STATIONS) { stationsUncached() }
+
+    private fun stationsUncached(): List<Station> = withRelogin {
         val array = getArray("/api/client/Station/GetList", mapOf("timestamp" to "0"))
         return@withRelogin (0 until array.length()).map { Station.from(array.getJSONObject(it)) }
     }
 
     /** GET /client/PrintJob/Get — uploaded but not yet printed. */
-    fun printJobs(): List<PrintJob> = withRelogin {
+    fun printJobs(force: Boolean = false): List<PrintJob> =
+        Cache.get("pms.jobs", Cache.TTL_LIVE, force) { printJobsUncached() }
+
+    private fun printJobsUncached(): List<PrintJob> = withRelogin {
         val array = getArray("/api/client/PrintJob/Get", mapOf("timestamp" to "0"))
         return@withRelogin (0 until array.length()).map { PrintJob.from(array.getJSONObject(it)) }
     }
@@ -98,11 +108,15 @@ class PmsApi(
             throwOnError = false,
         )
         val code = body.optInt("code", -1)
+        if (code == 0) Cache.invalidate("pms.jobs")
         return@withRelogin if (code == 0) null else body.optString("message", "code=$code")
     }
 
     /** GET /client/Scan/Get — scanned documents waiting for pickup. */
-    fun scanJobs(): List<ScanJob> = withRelogin {
+    fun scanJobs(force: Boolean = false): List<ScanJob> =
+        Cache.get("pms.scans", Cache.TTL_STATIONS, force) { scanJobsUncached() }
+
+    private fun scanJobsUncached(): List<ScanJob> = withRelogin {
         val array = getArray("/api/client/Scan/Get", mapOf("timestamp" to "0"))
         return@withRelogin (0 until array.length()).map { ScanJob.from(array.getJSONObject(it)) }
     }
@@ -115,6 +129,7 @@ class PmsApi(
             throwOnError = false,
         )
         val code = body.optInt("code", -1)
+        if (code == 0) Cache.invalidate("pms.scans")
         return@withRelogin if (code == 0) null else body.optString("message", "code=$code")
     }
 
@@ -123,6 +138,17 @@ class PmsApi(
      * Returns the rows plus the total page count the server reports.
      */
     fun usage(
+        begin: String,
+        end: String,
+        type: Int,
+        page: Int,
+        pageSize: Int,
+    ): Pair<List<UsageRecord>, Int> =
+        Cache.get("pms.usage.$begin.$end.$type.$page.$pageSize", Cache.TTL_STATIONS) {
+            usageUncached(begin, end, type, page, pageSize)
+        }
+
+    private fun usageUncached(
         begin: String,
         end: String,
         type: Int,
@@ -195,6 +221,7 @@ class PmsApi(
             // answer with the HTML result page instead of a JSON envelope — which
             // the browser never notices. Believe the queue, not the body: a job
             // that is not in the queue is the only real failure.
+            Cache.invalidate("pms.jobs")
             if (confirmQueued(file.name, before)) {
                 return "uploaded — confirmed in the print queue"
             }
@@ -222,7 +249,7 @@ class PmsApi(
      */
     private fun confirmQueued(fileName: String, before: List<Long>): Boolean {
         repeat(3) { attempt ->
-            val queued = runCatching { printJobs() }.getOrNull().orEmpty()
+            val queued = runCatching { printJobs(force = true) }.getOrNull().orEmpty()
             if (queued.any { it.fileName == fileName && it.jobId !in before }) return true
             if (attempt < 2) Thread.sleep(1500)
         }

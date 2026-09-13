@@ -21,6 +21,8 @@ class StationsFragment : ListFragment<Station>(R.layout.fragment_stations) {
     private var stations: List<Station> = emptyList()
     private var selectedGroup = 0
 
+    override fun cachePrefix() = "pms.stations"
+
     override fun rowLayout() = R.layout.item_station
 
     override suspend fun fetch(): List<Station> {

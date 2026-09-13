@@ -55,6 +55,13 @@ class LoginActivity : AppCompatActivity() {
             signIn(progress, button, status)
         }
 
+        // No account needed to look around: the catalog, the campus weather and
+        // the service screens (which say what they need) all work without one.
+        findViewById<MaterialButton>(R.id.btn_skip).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+        }
+
         status.text = AppConfig.lastSignInNote
         if (Credentials.configured) {
             signIn(progress, button, status)
