@@ -2,14 +2,17 @@ package edu.sustech.mobile.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import edu.sustech.mobile.R
 import edu.sustech.mobile.core.App
+import edu.sustech.mobile.core.AppConfig
 import edu.sustech.mobile.core.Credentials
 import edu.sustech.mobile.core.friendly
 import edu.sustech.mobile.core.runIo
@@ -37,6 +40,7 @@ class LoginActivity : AppCompatActivity() {
         val inputPassword = findViewById<TextInputEditText>(R.id.input_password)
         val progress = findViewById<ProgressBar>(R.id.login_progress)
         val button = findViewById<MaterialButton>(R.id.btn_login)
+        val status = findViewById<TextView>(R.id.login_status)
 
         inputSid.setText(Credentials.sid)
 
@@ -48,23 +52,28 @@ class LoginActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             Credentials.save(sid, password)
-            signIn(progress, button)
+            signIn(progress, button, status)
         }
 
+        status.text = AppConfig.lastSignInNote
         if (Credentials.configured) {
-            signIn(progress, button)
+            signIn(progress, button, status)
         }
     }
 
-    private fun signIn(progress: ProgressBar, button: MaterialButton) {
+    private fun signIn(progress: ProgressBar, button: MaterialButton, status: TextView) {
         progress.visibility = View.VISIBLE
         button.isEnabled = false
         runIo(
             block = { Session.signIn() },
-            onOk = { access ->
+            onOk = { report ->
                 progress.visibility = View.GONE
                 button.isEnabled = true
-                when (access) {
+                // Show (and remember) the reason, not just the verdict.
+                status.text = report.detail
+                AppConfig.lastSignInNote = report.detail
+                if (report.detail.isNotEmpty()) Log.w(TAG, "sign-in: $report.detail")
+                when (report.access) {
                     Session.Access.ACCEPTED -> openMain()
 
                     // Only an explicit refusal means the account is wrong.
@@ -91,5 +100,9 @@ class LoginActivity : AppCompatActivity() {
     private fun openMain() {
         startActivity(Intent(this, MainActivity::class.java))
         finish()
+    }
+
+    private companion object {
+        const val TAG = "SustechSignIn"
     }
 }

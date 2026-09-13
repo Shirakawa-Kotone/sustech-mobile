@@ -58,6 +58,7 @@ class AccountFragment : Fragment(R.layout.fragment_account), Refreshable {
         val printSession = view?.findViewById<TextView>(R.id.account_print_session)
         val tisSession = view?.findViewById<TextView>(R.id.account_tis_session)
 
+        view?.findViewById<TextView>(R.id.account_note)?.text = AppConfig.lastSignInNote
         account?.text = if (Credentials.configured) Credentials.sid else getString(R.string.account_unknown)
         accountState?.setText(
             if (Credentials.configured) R.string.account_creds_saved else R.string.account_creds_missing,

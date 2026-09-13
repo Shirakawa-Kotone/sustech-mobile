@@ -110,6 +110,10 @@ can also change it at runtime.
 
 ## Testing
 
+Print tests never need the campus network or a VPN: the app is pointed at
+`tools/mock_pms.py` through the emulator's host alias, so the entire print flow is
+exercised locally. The one campus-dependent fact is the 403 the *real* host answers
+off campus, which the app reports as "Printing needs the campus network".
 `tools/mock_pms.py` is a stand-in for the print API that speaks the same wire
 format, including the RSA login step (it decrypts with a real key, so a padding
 mistake in the app fails there too), and serves a stand-in sign-in page so the

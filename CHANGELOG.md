@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.2 — 2026-09-13
+
+- **Fixed: a plain-`http://` server address could be configured and then fail
+  with OkHttp's raw "CLEARTEXT communication … not permitted by network security
+  policy".** The address is now normalised: a bare host gets `https://`, and
+  plain HTTP is upgraded to HTTPS unless the host is a local test server
+  (emulator host alias, localhost, private address), where the network policy
+  allows it. The stored value is rewritten on startup so a hand-edited address
+  cannot linger. Reported from a real install.
+- **Fixed: "Session expired — sign in again" was shown for every print-session
+  failure**, including failures that had nothing to do with the session. The
+  banner now reports the real cause — campus-only 403 becomes "Printing needs the
+  campus network", a configuration or transport failure keeps its own wording,
+  and only an explicit refusal offers the sign-in action. Same for the courses
+  banner, which no longer claims a session problem when the network is at fault.
+- Clarified in the docs and the harness comments: the print tests run against the
+  local mock through the emulator host alias, so they need neither the campus
+  network nor a VPN; the only campus-dependent observation is the 403 the real
+  host returns off campus.
+
 ## 0.3.1 — 2026-09-13
 
 - **Fixed: the bottom bar was invisible in dark mode.** The app used a DayNight

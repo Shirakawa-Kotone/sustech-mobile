@@ -3,7 +3,9 @@ package edu.sustech.mobile.ui.pms
 import android.content.Intent
 import android.view.View
 import edu.sustech.mobile.R
+import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.App
+import edu.sustech.mobile.core.friendly
 import edu.sustech.mobile.core.runIo
 import edu.sustech.mobile.ui.LoginActivity
 import edu.sustech.mobile.ui.ServicePage
@@ -31,9 +33,17 @@ class PmsFragment : TabbedServiceFragment(R.layout.fragment_tabs) {
         runIo(
             block = { App.api.check() },
             onOk = { banner(null, null) },
-            onErr = {
-                banner(getString(R.string.session_expired)) {
-                    startActivity(Intent(requireContext(), LoginActivity::class.java))
+            onErr = { error ->
+                // Say what actually failed. "Session expired" is only true when
+                // the server refused the session; a campus-only 403, a plain-HTTP
+                // address or a dead network each get their own wording.
+                val api = error as? ApiException
+                when {
+                    api != null && api.offCampus -> banner(getString(R.string.banner_campus_only), null)
+                    api != null && !api.refused -> banner(error.friendly(requireContext()), null)
+                    else -> banner(error.friendly(requireContext())) {
+                        startActivity(Intent(requireContext(), LoginActivity::class.java))
+                    }
                 }
             },
         )

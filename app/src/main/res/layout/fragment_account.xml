@@ -71,6 +71,14 @@
                     android:text="@string/account_session_invalid"
                     android:textAppearance="@style/FieldValue" />
 
+                <TextView
+                    android:id="@+id/account_note"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/ink_muted"
+                    android:textSize="12sp" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_forget"
                     android:layout_width="wrap_content"

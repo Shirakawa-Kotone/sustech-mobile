@@ -33,6 +33,9 @@ object Session {
         UNREACHABLE,
     }
 
+    /** The verdict plus per-service reasons, so a failure is never a mystery. */
+    data class SignInReport(val access: Access, val detail: String)
+
     /** TIS's CAS entry point, the same value the Python `TISAuth` uses. */
     private const val TIS_SERVICE = Hosts.TIS + "/cas"
 
@@ -44,15 +47,40 @@ object Session {
      * are unreachable, so a user off campus is never told their password is
      * wrong because printing could not be reached.
      */
-    fun signIn(): Access {
+    fun signIn(): SignInReport {
         requireCredentials()
-        val print = printAccess()
-        val courses = coursesAccess()
-        return when {
-            print == Access.ACCEPTED || courses == Access.ACCEPTED -> Access.ACCEPTED
-            print == Access.REFUSED || courses == Access.REFUSED -> Access.REFUSED
+        val print = probe("printing") { printAccess() }
+        val courses = probe("courses") { coursesAccess() }
+        val access = when {
+            print.first == Access.ACCEPTED || courses.first == Access.ACCEPTED -> Access.ACCEPTED
+            print.first == Access.REFUSED || courses.first == Access.REFUSED -> Access.REFUSED
             else -> Access.UNREACHABLE
         }
+        val detail = listOf(print, courses)
+            .filter { it.second.isNotEmpty() }
+            .joinToString(" · ") { (_, why) -> why }
+        return SignInReport(access, detail)
+    }
+
+    /** Runs one probe, turning any failure into a reason string. */
+    private fun probe(name: String, block: () -> Access): Pair<Access, String> = try {
+        when (val result = block()) {
+            Access.ACCEPTED -> result to ""
+            else -> result to "$name: ${lastReason(name) ?: "no answer"}"
+        }
+    } catch (e: ApiException) {
+        Access.UNREACHABLE to "$name: ${e.message}"
+    } catch (e: Exception) {
+        Access.UNREACHABLE to "$name: ${e::class.java.simpleName}: ${e.message}"
+    }
+
+    /** Why the last probe for [name] failed, kept for the report. */
+    private val reasons = HashMap<String, String>()
+
+    private fun lastReason(name: String): String? = reasons[name]
+
+    private fun note(name: String, reason: String) {
+        reasons[name] = reason
     }
 
     /** Live print session, or a fresh one from the stored credentials. */
@@ -92,6 +120,7 @@ object Session {
             PmsAuth.login(Credentials.sid, Credentials.password)
             Access.ACCEPTED
         } catch (e: ApiException) {
+            note("printing", e.message.orEmpty())
             if (e.refused) Access.REFUSED else Access.UNREACHABLE
         }
     }
@@ -104,6 +133,7 @@ object Session {
             App.tis.currentSemester()
             Access.ACCEPTED
         } catch (e: ApiException) {
+            note("courses", e.message.orEmpty())
             if (e.refused) Access.REFUSED else Access.UNREACHABLE
         }
     }

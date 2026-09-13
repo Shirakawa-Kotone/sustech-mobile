@@ -75,7 +75,22 @@ object CasLogin {
             App.httpNoRedirect.newCall(post).execute().use { response ->
                 when {
                     response.isRedirect -> response.header("Location")
-                    response.code == 200 -> null // re-rendered login page = rejected
+                    response.code == 200 -> {
+                        // Re-rendered sign-in page. Usually the account was
+                        // rejected, but CAS also answers 200 for throttling and
+                        // other refusals — read the page before blaming the
+                        // password, and keep a snippet so the reason is visible.
+                        val text = response.body?.string().orEmpty()
+                        val plain = text.replace(Regex("<[^>]+>"), " ")
+                            .replace(Regex("\\s+"), " ").trim().take(160)
+                        val throttled = listOf("频繁", "频率", "too many", "rate limit", "稍后")
+                            .any { text.contains(it, ignoreCase = true) }
+                        throw ApiException(
+                            if (throttled) "CAS is rate-limiting sign-ins: $plain"
+                            else "CAS refused the account: $plain",
+                            refused = !throttled,
+                        )
+                    }
                     else -> throw ApiException("CAS answered HTTP ${response.code}")
                 }
             }
