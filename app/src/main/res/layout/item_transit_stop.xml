@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One stop in the list: a circular badge (count of buses due), name, distance. -->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/CardBase"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/transit_stop_badge"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/transit_badge"
+            android:gravity="center"
+            android:textColor="@color/brand"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            tools:text="3" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/transit_stop_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/ink"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                tools:text="Gate 2 (1)" />
+
+            <TextView
+                android:id="@+id/transit_stop_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/ink_muted"
+                android:textSize="13sp"
+                tools:text="Line 1 · Line 2" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/transit_stop_away"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/brand"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            tools:text="54 m" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
