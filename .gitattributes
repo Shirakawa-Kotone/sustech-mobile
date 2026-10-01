@@ -1,0 +1,16 @@
+# Normalise line endings. The working copy may be Windows; the repo is not.
+* text=auto eol=lf
+
+# Shell scripts must arrive as LF or the shebang breaks on Linux and macOS,
+# and a Windows commit would otherwise rewrite gradlew as CRLF.
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+gradlew.bat text eol=crlf
+
+# Never normalise binaries.
+*.jar binary
+*.apk binary
+*.png binary
+*.jks binary
+*.keystore binary
