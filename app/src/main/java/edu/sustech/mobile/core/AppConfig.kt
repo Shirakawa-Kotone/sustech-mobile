@@ -91,4 +91,8 @@ object AppConfig {
     fun resetBaseUrl() {
         prefs.edit().remove(KEY_BASE_URL).apply()
     }
+
+    /** True when a non-default server address has been stored. */
+    val hasServerOverride: Boolean
+        get() = prefs.getString(KEY_BASE_URL, "")?.isNotEmpty() == true
 }

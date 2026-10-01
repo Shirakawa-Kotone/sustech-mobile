@@ -40,6 +40,16 @@
     <string name="empty_loading">Loading…</string>
     <string name="empty_none">Nothing here yet</string>
     <string name="empty_off_campus">Campus network required — connect to the campus network or campus VPN.</string>
+
+    <!-- Network classification on the Account tab: the three states a phone can
+         be in, told apart by which services answer (CAS answers anywhere, the
+         print host only from the campus network). -->
+    <string name="network_label">Network</string>
+    <string name="session_courses_label">Courses (CAS)</string>
+    <string name="session_printing_label">Printing (campus only)</string>
+    <string name="network_campus">Campus network — all services reachable</string>
+    <string name="network_off_campus">Online, off campus — printing needs the campus network or VPN</string>
+    <string name="network_none">No network — nothing reachable</string>
     <string name="error_network">Network error: %1$s</string>
 
     <!-- Services catalog -->
@@ -52,16 +62,59 @@
     <string name="service_tis_summary">Weekly timetable, courses, grades, exams</string>
     <string name="service_blackboard">Blackboard</string>
     <string name="service_blackboard_summary">Assignments, deadlines, course content</string>
+    <string name="bb_courses">Courses</string>
+    <string name="bb_deadlines">Deadlines</string>
+    <string name="bb_not_signed_in">Not signed in.</string>
+    <string name="bb_courses_empty">No Blackboard courses.</string>
+    <string name="bb_deadlines_empty">No dated assignments.</string>
+
+    <!-- Campus transit (data: sustech.online — CC BY-SA 4.0, API only) -->
+    <string name="transit_stops">Stops</string>
+    <string name="transit_buses">Buses</string>
+    <string name="transit_choose_direction">Pick a direction to see its buses.</string>
+    <string name="transit_no_stops">No stops returned by the bus API.</string>
+    <string name="transit_no_arrivals">No buses due right now.</string>
+    <string name="transit_need_location">Allow location to sort stops by distance.</string>
+    <string name="transit_credit">Data: sustech.online</string>
+
+    <!-- Library -->
+    <string name="library_inside">Inside</string>
+    <string name="library_books">Books</string>
+    <string name="library_where">Where</string>
+    <string name="library_people_total">%1$d inside</string>
+    <string name="library_hours">Open %1$s</string>
+    <string name="library_no_people">The library page carries no headcount right now.</string>
+    <string name="library_search_hint">Title, author or subject</string>
+    <string name="library_no_results">Nothing matched.</string>
+    <string name="library_search_first">Search, then tap a book to see where it is.</string>
+    <string name="library_on_shelf">Available</string>
+    <string name="library_call_number">Shelf %1$s</string>
+    <string name="library_electronic">Online copy only — nothing on a shelf.</string>
+    <string name="library_credit">Data: lib.sustech.edu.cn · Primo</string>
+    <string name="transit_source_credit">Live ETAs · buseta.sustcra.com (sustech.online)</string>
+
+    <!-- Home-screen widget -->
+    <string name="widget_label">SUSTech Mobile info</string>
+    <string name="widget_description">Campus bus ETAs, Blackboard deadlines, next class, or weather — pick one when you drop the card.</string>
+    <string name="widget_config_title">What should this widget show?</string>
+    <string name="widget_config_hint">Tap the card any time to refresh it. Bus cards also refresh once a minute while the screen is on.</string>
+    <string name="widget_kind_bus">Campus bus arrivals (pick a stop)</string>
+    <string name="widget_kind_bb">Blackboard deadlines</string>
+    <string name="widget_kind_classes">Next class</string>
+    <string name="widget_kind_weather">Weather + AQI</string>
+    <string name="widget_stop_auto">Automatic (nearest stop)</string>
+    <string name="widget_stops_label">Stop</string>
+    <string name="widget_stops_failed">Could not load stops: %1$s</string>
+    <string name="widget_save">Add widget</string>
+    <string name="widget_cancel">Cancel</string>
     <string name="service_library">Library</string>
-    <string name="service_library_summary">Seats, loans, room booking</string>
+    <string name="service_library_summary">How full it is, and where a book is</string>
     <string name="service_booking">Venue booking</string>
     <string name="service_booking_summary">E-Hall venue and facility reservations</string>
     <string name="service_transit">Campus transit</string>
     <string name="service_transit_summary">Shuttle routes and live buses</string>
     <string name="service_nces">Course reviews</string>
     <string name="service_nces_summary">Community course evaluation ratings</string>
-    <string name="service_papers">Papers</string>
-    <string name="service_papers_summary">CNKI / Web of Science search and fetch</string>
     <string name="service_faculty">Faculty</string>
     <string name="service_faculty_summary">Staff directory and contact lookup</string>
     <string name="service_ws">Exchange programs</string>

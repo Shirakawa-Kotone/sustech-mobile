@@ -4,8 +4,11 @@ import android.content.Context
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import edu.sustech.mobile.R
-import edu.sustech.mobile.tis.TisApi
+import edu.sustech.mobile.bb.BbApi
+import edu.sustech.mobile.library.LibraryApi
 import edu.sustech.mobile.pms.PmsApi
+import edu.sustech.mobile.tis.TisApi
+import edu.sustech.mobile.transit.BusApi
 import edu.sustech.mobile.weather.WeatherClient
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -62,7 +65,16 @@ object App {
 
     val tis: TisApi by lazy { TisApi(http) }
 
+    val bb: BbApi by lazy { BbApi(http) }
+
+    val bus: BusApi by lazy { BusApi(http) }
+
     val weather: WeatherClient by lazy { WeatherClient(http) }
+
+    val library: LibraryApi by lazy { LibraryApi(http) }
+
+    /** Application context, for callers that need assets or resources. */
+    val context: android.content.Context get() = appContext
 
     /** Bare hostname of the configured print server. */
     fun host(): String = Hosts.host(AppConfig.baseUrl)

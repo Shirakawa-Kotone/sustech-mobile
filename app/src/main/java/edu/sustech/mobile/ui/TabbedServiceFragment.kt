@@ -14,6 +14,17 @@ import edu.sustech.mobile.R
 data class ServicePage(@StringRes val title: Int, val factory: () -> Fragment)
 
 /**
+ * The shell that hosts the calling page.
+ *
+ * `parentFragment` is **null** for these pages: `replace()` sets a container
+ * but not the child→parent link. A page that needs to talk to its shell
+ * (switch tabs, update the banner) has to find it through the activity's
+ * FragmentManager instead.
+ */
+fun Fragment.hostShell(): TabbedServiceFragment? =
+    activity?.supportFragmentManager?.fragments?.filterIsInstance<TabbedServiceFragment>()?.firstOrNull()
+
+/**
  * A service whose own navigation is a tab strip.
  *
  * Used by both print and TIS: the shell owns services, the service owns its
@@ -52,6 +63,15 @@ abstract class TabbedServiceFragment(@LayoutRes layoutRes: Int) : Fragment(layou
         parentFragmentManager.beginTransaction()
             .replace(R.id.tabs_container, fragment)
             .commitAllowingStateLoss()
+    }
+
+    /**
+     * Switch to a page from outside the tab strip — a list row that opens a
+     * detail tab (the transit stop list does this) needs a public door.
+     */
+    fun selectTab(position: Int) {
+        val tabs = view?.findViewById<TabLayout>(R.id.tabs) ?: return
+        tabs.getTabAt(position)?.select()
     }
 
     /** Rebuilds the visible page from scratch (used after signing in). */

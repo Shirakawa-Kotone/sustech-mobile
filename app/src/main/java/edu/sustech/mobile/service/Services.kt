@@ -39,7 +39,8 @@ object Services {
         summary = R.string.service_blackboard_summary,
         icon = R.drawable.ic_doc,
         navId = R.id.nav_pms,
-    )
+        available = true,
+    ) { edu.sustech.mobile.ui.bb.BbFragment() }
 
     val library = ServiceModule(
         id = "library",
@@ -47,7 +48,8 @@ object Services {
         summary = R.string.service_library_summary,
         icon = R.drawable.ic_history,
         navId = R.id.nav_pms,
-    )
+        available = true,
+    ) { edu.sustech.mobile.ui.library.LibraryFragment() }
 
     val booking = ServiceModule(
         id = "booking",
@@ -63,21 +65,14 @@ object Services {
         summary = R.string.service_transit_summary,
         icon = R.drawable.ic_refresh,
         navId = R.id.nav_pms,
-    )
+        available = true,
+    ) { edu.sustech.mobile.ui.transit.TransitFragment() }
 
     val nces = ServiceModule(
         id = "nces",
         title = R.string.service_nces,
         summary = R.string.service_nces_summary,
         icon = R.drawable.ic_person,
-        navId = R.id.nav_pms,
-    )
-
-    val papers = ServiceModule(
-        id = "papers",
-        title = R.string.service_papers,
-        summary = R.string.service_papers_summary,
-        icon = R.drawable.ic_doc,
         navId = R.id.nav_pms,
     )
 
@@ -115,7 +110,7 @@ object Services {
 
     val all: List<ServiceModule> = listOf(
         printing, courses,
-        blackboard, library, booking, transit, nces, papers, faculty, exchange,
+        blackboard, library, booking, transit, nces, faculty, exchange,
         languageHelp, wifi,
     )
 

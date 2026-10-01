@@ -102,12 +102,17 @@ abstract class ListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRes),
         runIo(
             block = { fetch() },
             onOk = { rows ->
+                // The fetch can outlive the fragment (fast 401 vs a slow
+                // detach): touching views or calling getString() on a
+                // detached fragment is a hard crash, so stop here.
+                if (!isAdded) return@runIo
                 swipe.isRefreshing = false
                 adapter.submit(rows)
                 showEmpty(rows.isEmpty(), emptyText())
                 onLoaded(rows)
             },
             onErr = { error ->
+                if (!isAdded) return@runIo
                 swipe.isRefreshing = false
                 adapter.submit(emptyList())
                 showEmpty(true, errorText(error))
@@ -123,7 +128,8 @@ abstract class ListFragment<T>(@LayoutRes layoutRes: Int) : Fragment(layoutRes),
     protected open fun onLoaded(rows: List<T>) = Unit
 
     /** Subclasses can replace the generic error copy (say, "not signed in"). */
-    protected open fun errorText(error: Throwable): String = error.friendly(requireContext())
+    protected open fun errorText(error: Throwable): String = context?.let { error.friendly(it) }
+        ?: error.message.orEmpty()
 
     protected fun showError(error: Throwable) {
         Toast.makeText(requireContext(), error.friendly(requireContext()), Toast.LENGTH_LONG).show()

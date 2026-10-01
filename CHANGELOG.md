@@ -1,5 +1,177 @@
 # Changelog
 
+## 0.3.11 — 2026-10-01
+
+- **Stops are places now, not berths.** The API serves 33 stops, but they are 18
+  landmarks: "Hui Yuan Uphill" and "Hui Yuan Downhill", "Gate 1 (1)" and
+  "Gate 1 (2)". The four busiest stops listed four route names in a row ("Gate 2
+  Short-turn B · RSB Short-turn A · Line 1 · Line 2"). Berths of one landmark are
+  now one row and its service is merged to one token per family —
+  **"1/2 · Uphill/Downhill"**. Requested as "merge uphill/downhill, 1 and 2".
+- **The direction is a choice, made after tapping in.** Tapping a place opens the
+  Buses tab with a chooser — **CW / CCW / Uphill / Downhill**, only the ones that
+  actually leave from there — and the list shows that direction alone. One berth
+  can carry several directions (Hui Yuan Uphill serves Uphill *and* CW *and* CCW),
+  which is why all four used to be mixed into one list. A place with a single
+  direction has nothing to ask and picks it silently. Requested as "it ask you for
+  directions. display as 'cw/ccw' 'uphill/downhill'".
+- **"Board" is now "Buses"** — buses on the way, which is what the list is.
+  Requested as "in the BOARD section, it actually means BUSES".
+- Direction words are shortened at the edge, never in the data: `Clockwise` →
+  `CW`, `Counter-Clockwise` → `CCW`; `Uphill`/`Downhill` were already the words
+  riders use. Ring lines are labelled by number, derived from the route name
+  (`Line 2` → `2`) rather than a hardcoded id, so a new or renamed line still reads
+  right.
+- All of it is pure data over `/stops`, which already carries each berth's route
+  *and* direction — so `stops()` no longer needs `routes()` to name things, and
+  no extra request is made. `TransitBusesFragment`'s refresh prefix was also wrong
+  (`bus.board.` never matched the `bus.arrivals.*` entries), so pull-to-refresh did
+  not actually re-ask the API; it does now.
+
+## 0.3.10 — 2026-10-01
+
+- **Papers is gone from the catalog.** It was a roadmap card with no
+  implementation behind it, and the school's paper search is not something this
+  app can do better than a browser. Requested as "drop papers feature".
+- **New: Library — how full it is, and where a book is.** Two questions, three
+  tabs, and neither question needs an account, so the screens work on the way to
+  the library rather than after arriving.
+  - **Inside** reads the library's own homepage (`lib.sustech.edu.cn/main.htm`),
+    which server-renders a live headcount (`在馆人数`) and the per-building
+    split — 1777 inside, 一丹 865, 琳恩 780 when this shipped. There is no JSON
+    behind it, so the number is read out of the HTML. Entries the library hides
+    behind an HTML comment (涵泳) are stripped before counting, so a building the
+    library has stopped advertising cannot reappear. There is no seat or capacity
+    figure anywhere, so this reports people, not a percentage.
+  - **Books** searches Primo's public record API (`/primaws/rest/pub/pnxs`), the
+    same one the Discovery SPA calls, and **Where** lists every copy from
+    `delivery.holding`: building, collection, call number and availability —
+    "Lynn Library · 3rd Floor / Shelf O62 /E 4:2 第111排A面 / Available", verified
+    on device. A record with no physical copy says so instead of showing an
+    empty list.
+  - Not wired yet, though verified live: the IC booking system's room
+    availability (`booking.lib.sustech.edu.cn/ic-web/home/page/room/idle` — 讨论间
+    9/13 and 6/11 free at the time). It needs a CAS booking session, so it is a
+    separate piece of work from the two public reads above.
+  - 🔴 Primo's TLS needs **unsafe legacy renegotiation**, which Python's SSL stack
+    refuses outright (`UNSAFE_LEGACY_RENEGOTIATION_DISABLED`) while curl and
+    OkHttp both complete the handshake — verified from a JVM OkHttp 4.12 probe
+    and again on the device. Any future work on this host must probe with curl or
+    OkHttp, not urllib, or it will read as an outage.
+- **Transit: the board now says where the bus actually is.** `/arrivals` and
+  `/vehicles` share a `trip_id`, and the vehicle's own 1-based stop index
+  (`current_position.next_stop_num`, checked against the direction's stop order)
+  subtracts from the rider's stop index to give **"8 stops to go · next 学生宿舍北"**.
+  A countdown alone cannot tell a rider whether the bus is one stop away or stuck
+  at the far end of the loop. Cross-checked live: 8 stops against an 8-minute
+  ETA. Timetable rows have no vehicle and show no such line.
+
+## 0.3.9 — 2026-10-01
+
+- **The app has an academic calendar now, bundled in the APK.** The timetable TIS
+  serves is a *pattern* — "weeks 2, 4, 6 … on Thursday" — and it makes no mention
+  of holidays, so on 2026-10-01 the Today card announced a 19:00 lecture during
+  国庆节. `assets/calendar/<year>/` now carries verbatim copies of the
+  `sustech-calendar` repo (the same files `sustech_survival.calendar` parses), and
+  `edu.sustech.mobile.calendar.Term` turns a pattern into real dates: week numbers
+  anchored on the Monday on or before `teaching_start`, holidays, makeup days,
+  extra breaks and final weeks. Reported as "according to sustech survival,
+  sustech mobile and sustech cli, what class do i have today?" — the other two
+  clients said no class, the app did not.
+- **"Next up" and the "Next class" widget now share one rule.** They each carried
+  a copy of the selection logic, which is how the two could drift; both call
+  `tis.NextClass`. A meeting already finished today no longer counts, and a
+  holiday-flushed meeting counts on its makeup day — or not at all.
+- **The week line names the holiday** when today is one (`Thu · 2026Fall · 国庆节`),
+  so an empty "Next up" says why. The holiday name is calendar data, shown
+  verbatim, like the room names already on the card.
+- **This week drops classes a holiday flushed.** A row with no real meeting left
+  in the week is gone; a row a holiday moved stays, in the week it moved to.
+- **Without a calendar the app degrades, it does not guess.** A date no bundled
+  year covers falls back to the pattern-only reading — what the card did before —
+  so an unfilled 2028 says too much rather than too little.
+- **Every file in the bundle is the repo's, proven byte-for-byte.** `assets/calendar/`
+  is `dumixthestpd/sustech-calendar` at pinned commit `e5e102c7`: the repo's root
+  `README.md` (as `upstream-README.md`) and `2026/{general,graduate,undergraduate}.json`.
+  Each file's git blob sha1 is checked against the repo's own tree listing, so a
+  wrong calendar cannot slip in unquestioned. The repo's
+  `2026/academic-calendar-2026.pdf` is deliberately **not** packaged — nothing
+  reads it — and it is the one omission, named in the README so its absence is
+  not mistaken for a foreign copy.
+- Bundling is deliberate on this host: `raw.githubusercontent.com` is unreliable
+  from Python here (hangs, `RemoteDisconnected`) while curl works, and the copy
+  in `~/.sustech_survival/cache` on 2026-10-01 did **not** match upstream — it
+  had dropped five of the six holidays, both makeup days and the extra break, and
+  reported `total_teaching_weeks` 17 instead of 16. Refresh instructions and the
+  blob hashes are in `app/src/main/assets/calendar/README.md`.
+
+## 0.3.8 — 2026-10-01
+
+- **Sign-in stopped waiting on the print server.** Fixing the order in 0.3.7
+  was not enough: the print probe still ran on every sign-in, and it is the
+  half that cannot answer off campus — it costs a CAS handshake plus the print
+  system's RSA password login, and it can only ever change the verdict when CAS
+  itself answered nothing. Courses are asked first now and settle the account on
+  their own; printing is probed only when the course probe could not answer at
+  all. `ensurePrint()` still runs it lazily where it is needed. Reported as
+  "i need to speed up the login verification".
+- **A saved account no longer holds the app shut.** `LoginActivity` is the
+  launcher and ran the whole two-service verification before opening anything,
+  so every launch began on a spinner. With credentials already stored there is
+  nothing to ask: the app opens immediately, the verification runs alongside it
+  on an app-level scope, and its verdict lands in the sign-in note the Account
+  tab shows. Reported as "it's faster to first continue without credentials,
+  then refresh to get the course info".
+- **Fixed: two screens signing in at once could each report a dead session.**
+  `Cache` remembered a value only once its load had finished, so the background
+  verification and the Today tab both walked the CAS re-login path; the second
+  found the re-login already in flight, gave up, and cached the failure — a
+  spurious "session expired" on a session that was fine. Loads are single-flight
+  per key now.
+- Sign-in logs its verdict with per-probe timings under the `SustechSignIn` tag,
+  so the cost of each half is measured rather than assumed.
+
+## 0.3.7 — 2026-09-14
+
+- **Licensing settled: PolyForm Noncommercial only, no commercial offering.**
+  The earlier draft dual-license was rolled back: the school name and torch
+  mark, plus reverse-engineered campus endpoints, make selling commercial
+  rights a liability with no realistic buyers. The author retains full rights
+  as sole copyright holder (all commits by one person) and may price their
+  own distribution; README now carries public funding commitments (annual
+  transparency, threshold-then-free, contributor share). README rewritten
+  for a public audience in the `sustech_survival` README's shape.
+- **Fixed: the credential check ran against the print server first.** Sign-in
+  probed PMS before CAS, so off campus — where the print host 403s or drops
+  packets — every sign-in ground through dead print timeouts before CAS was
+  even tried, which read as "stations search timed out forever". CAS/TIS now
+  goes first: it is the credential verdict, it answers from any network, and
+  the campus-only print probe runs last. Reported as "you don't test creds by
+  using pms service".
+- **The test-server card is gone from the Account tab** unless a server
+  override is actually configured. The shipping UI no longer shows any print
+  server address; the field remains reachable only by pointing the app at a
+  mock first. Reported as "i will kill you for keeping the test server as pms".
+- **Session rows are labeled by service** — "Courses (CAS)" and "Printing
+  (campus only)" — and the raw sign-in note line ("courses: … · printing: …")
+  is gone: it restated the two rows above it in transport vocabulary. No
+  print-server hostname appears anywhere on the Account tab now.
+- **New Network row on the Account tab** telling the three states apart:
+  campus network (print host answers normally), online off campus (print host
+  answers its campus-only 403, CAS answers), and no network (nothing answers).
+  Verified in all three states on the emulator: airplane-mode style shutoff →
+  "No network"; this Mac's off-campus network → "Online, off campus".
+- **Funding stance: the Android app ships free.** The upstream `sustech-cli`
+  developer approved this app as a new project and reminded that people don't
+  like charged public services — so the APK carries no price and the LICENSE
+  file is untouched. A paid iOS edition is only a maybe: considered after the
+  Android release, only with massive demand, license revisited then. Final
+  README pass by the maintainer: shorter, first-person, funding commitments
+  off the public page, iOS section just "We will consider iOS releases in the
+  future."
+- **CONTRIBUTING.md added**, stating up front that the license may change —
+  the budget problems for iOS publishing are the public reason.
+
 ## 0.3.6 — 2026-09-13
 
 - **Fixed: every clock time was wrong.** The app carried the exam-hall period
