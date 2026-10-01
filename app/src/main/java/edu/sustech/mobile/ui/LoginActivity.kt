@@ -64,7 +64,13 @@ class LoginActivity : AppCompatActivity() {
 
         status.text = AppConfig.lastSignInNote
         if (Credentials.configured) {
-            signIn(progress, button, status)
+            // Nothing left to ask: the account is already saved, so open the
+            // app and let the verification run alongside it. Waiting here is
+            // what made "continue without credentials, then refresh" the fast
+            // path — the verdict is the same a moment later, and the timeout
+            // only ever bought a spinner.
+            Session.verifyInBackground()
+            openMain()
         }
     }
 

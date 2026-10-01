@@ -1,5 +1,6 @@
 package edu.sustech.mobile.sso
 
+import android.util.Log
 import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.core.AppConfig
@@ -8,6 +9,10 @@ import edu.sustech.mobile.core.Credentials
 import edu.sustech.mobile.core.Hosts
 import edu.sustech.mobile.pms.PmsAuth
 import edu.sustech.mobile.tis.Semester
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Auto sign-in for every service, from the one stored school account.
@@ -38,6 +43,9 @@ object Session {
     /** The verdict plus per-service reasons, so a failure is never a mystery. */
     data class SignInReport(val access: Access, val detail: String)
 
+    /** One probe's outcome, with how long it held the user up. */
+    private data class Probe(val access: Access, val reason: String, val millis: Long)
+
     /** TIS's CAS entry point, the same value the Python `TISAuth` uses. */
     private const val TIS_SERVICE = Hosts.TIS + "/cas"
 
@@ -50,7 +58,16 @@ object Session {
     private const val PRINT_SERVICE = Hosts.PMS + "/client/new/cprintPc/"
 
     /**
-     * Signs in to every service and reports the strongest signal seen.
+     * Signs in and reports the strongest signal seen.
+     *
+     * The course probe goes first and normally settles the question on its own:
+     * CAS answers from any network, so it is both the credential check and the
+     * fast one. Printing is asked **only** when the course probe could not
+     * answer at all — an unreachable CAS is the single case where a second
+     * opinion changes the verdict, and printing is campus-only, so probing it
+     * on every sign-in spent a CAS handshake plus an RSA password login on the
+     * one service that can never answer off campus. `ensurePrint()` and the
+     * per-screen re-login still run it lazily, where it is actually needed.
      *
      * One flat rule drives the whole classification: only an explicit refusal
      * counts as a bad account. Off-campus (printing), timeouts and 5xx replies
@@ -59,29 +76,72 @@ object Session {
      */
     fun signIn(): SignInReport {
         requireCredentials()
-        val print = probe("printing") { printAccess() }
+        val startedAt = System.currentTimeMillis()
         val courses = probe("courses") { coursesAccess() }
-        val access = when {
-            print.first == Access.ACCEPTED || courses.first == Access.ACCEPTED -> Access.ACCEPTED
-            print.first == Access.REFUSED || courses.first == Access.REFUSED -> Access.REFUSED
-            else -> Access.UNREACHABLE
+        val print: Probe?
+        val access: Access
+        if (courses.access == Access.UNREACHABLE) {
+            print = probe("printing") { printAccess() }
+            access = when {
+                print.access == Access.ACCEPTED -> Access.ACCEPTED
+                print.access == Access.REFUSED -> Access.REFUSED
+                else -> Access.UNREACHABLE
+            }
+        } else {
+            // Nothing to ask printing: the course probe already returned a
+            // verdict, and only a second *verdict* could change it.
+            print = null
+            access = courses.access
         }
-        val detail = listOf(print, courses)
-            .filter { it.second.isNotEmpty() }
-            .joinToString(" · ") { (_, why) -> why }
+        val detail = listOfNotNull(courses, print)
+            .filter { it.reason.isNotEmpty() }
+            .joinToString(" · ") { it.reason }
+        val timing = "courses ${courses.millis}ms, printing " +
+            (print?.let { "${it.millis}ms" } ?: "skipped")
+        val elapsed = System.currentTimeMillis() - startedAt
+        Log.i(
+            TAG,
+            "sign-in $access in ${elapsed}ms ($timing)${if (detail.isEmpty()) "" else " · $detail"}",
+        )
         return SignInReport(access, detail)
     }
 
-    /** Runs one probe, turning any failure into a reason string. */
-    private fun probe(name: String, block: () -> Access): Pair<Access, String> = try {
-        when (val result = block()) {
-            Access.ACCEPTED -> result to ""
-            else -> result to "$name: ${lastReason(name) ?: "no answer"}"
+    /**
+     * Verifies a saved account while the app is already open.
+     *
+     * With credentials stored there is nothing to ask and nothing worth gating
+     * on: the verdict reads the same a second later, and holding the app shut
+     * for it is what made "continue without credentials, then refresh" the
+     * fast path. Runs on an app-level scope so the verdict still lands once the
+     * sign-in screen is gone; a refusal ends up in the sign-in note the Account
+     * tab shows.
+     */
+    fun verifyInBackground() {
+        if (!Credentials.configured) return
+        scope.launch {
+            val report = runCatching { signIn() }.getOrNull() ?: return@launch
+            AppConfig.lastSignInNote = report.detail
+            if (report.detail.isNotEmpty()) Log.w(TAG, "sign-in: ${report.detail}")
         }
-    } catch (e: ApiException) {
-        Access.UNREACHABLE to "$name: ${e.message}"
-    } catch (e: Exception) {
-        Access.UNREACHABLE to "$name: ${e::class.java.simpleName}: ${e.message}"
+    }
+
+    /** Outlives the sign-in screen — see [verifyInBackground]. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Runs one probe, turning any failure into a reason string, and times it. */
+    private fun probe(name: String, block: () -> Access): Probe {
+        val startedAt = System.currentTimeMillis()
+        val (access, reason) = try {
+            when (val result = block()) {
+                Access.ACCEPTED -> result to ""
+                else -> result to "$name: ${lastReason(name) ?: "no answer"}"
+            }
+        } catch (e: ApiException) {
+            Access.UNREACHABLE to "$name: ${e.message}"
+        } catch (e: Exception) {
+            Access.UNREACHABLE to "$name: ${e::class.java.simpleName}: ${e.message}"
+        }
+        return Probe(access, reason, System.currentTimeMillis() - startedAt)
     }
 
     /** Why the last probe for [name] failed, kept for the report. */
@@ -125,6 +185,33 @@ object Session {
         reloginInFlight = true
         return try {
             printAccess() == Access.ACCEPTED
+        } finally {
+            reloginInFlight = false
+        }
+    }
+
+    /**
+     * Blackboard's CAS entry point — the same service URL the Python
+     * `BBAuth` uses. Cookies land scoped to `bb.sustech.edu.cn`.
+     */
+    private const val BB_SERVICE =
+        Hosts.BLACKBOARD + "/webapps/bb-sso-BBLEARN/index.jsp"
+
+    /** Live Blackboard session, or a fresh one from the stored credentials. */
+    fun ensureBb(): Boolean = runCatching { App.bb.isSignedIn() }
+        .getOrNull() == true
+        ?: reloginBb()
+
+    fun reloginBb(): Boolean {
+        if (!Credentials.configured || reloginInFlight) return false
+        reloginInFlight = true
+        return try {
+            Cache.invalidate("bb.")
+            CasLogin.login(BB_SERVICE, Credentials.sid, Credentials.password,
+                xhr = false, submitValue = "提交")
+            App.bb.isSignedIn()
+        } catch (e: ApiException) {
+            false
         } finally {
             reloginInFlight = false
         }
@@ -192,4 +279,6 @@ object Session {
             throw ApiException("No school account saved", signInRequired = true)
         }
     }
+
+    private const val TAG = "SustechSignIn"
 }
