@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One catalogue hit — title first, the rest as a single quiet line.
+
+  材料化学 Materials chemistry
+  曾兆华 · 2022 · book
+-->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/CardBase"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/library_book_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/ink"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            tools:text="材料化学 Materials chemistry" />
+
+        <TextView
+            android:id="@+id/library_book_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:textColor="@color/ink_muted"
+            android:textSize="12sp"
+            tools:text="曾兆华 · 2022 · book" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

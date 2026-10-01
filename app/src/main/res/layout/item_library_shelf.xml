@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One place a copy lives — the answer to "where is it".
+
+  Lynn Library · 3rd bound periodicals
+  Shelf TH7 /JC 1                                        Available
+-->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/CardBase"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/library_shelf_place"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/ink"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                tools:text="Lynn Library · 3rd bound periodicals" />
+
+            <TextView
+                android:id="@+id/library_shelf_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:textColor="@color/brand"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:text="Available" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/library_shelf_call"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:textColor="@color/ink_muted"
+            android:textSize="12sp"
+            tools:text="Shelf TH7 /JC 1" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
