@@ -3,11 +3,13 @@ package edu.sustech.mobile.ui.tis
 import android.view.View
 import android.widget.TextView
 import edu.sustech.mobile.R
+import edu.sustech.mobile.calendar.AcademicCalendar
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.core.ApiException
 import edu.sustech.mobile.tis.ClassEntry
 import edu.sustech.mobile.tis.Weekday
 import edu.sustech.mobile.ui.ListFragment
+import java.time.LocalDate
 
 /**
  * This week — every meeting of the current teaching week, in order.
@@ -47,9 +49,18 @@ class WeekFragment : ListFragment<ClassEntry>(R.layout.fragment_tis_week) {
         ).joinToString(" · ")
 
         val current = week ?: 1
+        val term = AcademicCalendar.termAt(App.context, LocalDate.now())
         return App.tis.semesterSchedule(semester)
             .filter { it.meets(current) }
             .distinctBy { "${it.name}|${it.weekday}|${it.periodFrom}|${it.periodTo}" }
+            // A holiday flushes a whole day, so a row with no real meeting left
+            // in this week is not something to plan around. Rows a holiday moved
+            // stay, in the week they moved to. Without a calendar for the date
+            // the pattern is all there is, and nothing is dropped.
+            .filter { entry ->
+                term == null || term.meetings(entry.effectiveWeeks, entry.weekday)
+                    .any { term.weekOf(it) == current }
+            }
             .sortedWith(compareBy({ it.weekday }, { it.periodFrom }))
     }
 

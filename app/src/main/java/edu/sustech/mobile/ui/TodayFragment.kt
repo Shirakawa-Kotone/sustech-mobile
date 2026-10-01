@@ -8,12 +8,17 @@ import androidx.fragment.app.Fragment
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.button.MaterialButton
 import edu.sustech.mobile.R
+import edu.sustech.mobile.calendar.AcademicCalendar
+import edu.sustech.mobile.calendar.Term
 import edu.sustech.mobile.core.App
 import edu.sustech.mobile.core.Cache
 import edu.sustech.mobile.core.runIo
 import edu.sustech.mobile.tis.ClassEntry
+import edu.sustech.mobile.tis.NextClass
 import edu.sustech.mobile.tis.PeriodTimes
+import edu.sustech.mobile.tis.Semester
 import edu.sustech.mobile.tis.Weekday
+import java.time.LocalDate
 import java.util.Calendar
 
 /**
@@ -55,6 +60,7 @@ class TodayFragment : Fragment(R.layout.fragment_today), Refreshable {
         val exam = view?.findViewById<TextView>(R.id.today_exam_value)
 
         val today = Calendar.getInstance()
+        val todayDate = LocalDate.now()
         swipe?.isRefreshing = true
         weekday?.text = Weekday.short(isoWeekday(today))
         week?.setText(R.string.today_week_unknown)
@@ -81,18 +87,17 @@ class TodayFragment : Fragment(R.layout.fragment_today), Refreshable {
                 val semester = App.tis.currentSemester()
                 val currentWeek = App.tis.currentWeek()
                 val entries = App.tis.semesterSchedule(semester)
-                Triple(semester, currentWeek, entries)
+                Timetable(semester, currentWeek, entries, AcademicCalendar.termAt(App.context, todayDate))
             },
-            onOk = { (semester, currentWeek, entries) ->
+            onOk = { timetable ->
                 swipe?.isRefreshing = false
                 // TIS owns the period times; ask once and the card shows the
                 // clock hours the rooms actually use.
-                runCatching { App.tis.loadSlotTimes(semester, currentWeek) }
-                week?.text = if (currentWeek == null) getString(R.string.today_week_unknown)
-                else getString(R.string.today_week, currentWeek)
-                weekday?.text =
-                    "${Weekday.short(isoWeekday(today))} · ${semester.labelEn.ifEmpty { semester.label }}"
-                classes?.text = nextUpText(entries, currentWeek, today)
+                runCatching { App.tis.loadSlotTimes(timetable.semester, timetable.week) }
+                week?.text = if (timetable.week == null) getString(R.string.today_week_unknown)
+                else getString(R.string.today_week, timetable.week)
+                weekday?.text = weekLine(timetable, today, todayDate)
+                classes?.text = nextUpText(timetable, today, todayDate)
                 hint?.visibility = View.GONE
 
                 runIo(
@@ -116,30 +121,51 @@ class TodayFragment : Fragment(R.layout.fragment_today), Refreshable {
         )
     }
 
+    /** One term's timetable, plus the calendar that says which dates are real. */
+    private class Timetable(
+        val semester: Semester,
+        val week: Int?,
+        val entries: List<ClassEntry>,
+        val term: Term?,
+    )
+
     /**
-     * The next meeting: the one still ahead today if there is one, otherwise the
-     * first one later in the week. Meetings are filtered by the week number, so
-     * an even-week lab does not appear in an odd week.
+     * The muted line under the week: weekday, term, and the holiday when today
+     * is one — the reason the "Next up" line skipped today.
      */
-    private fun nextUpText(entries: List<ClassEntry>, week: Int?, today: Calendar): String {
-        // The same lab is reported once per section row; one slot is one line.
-        val unique = entries.distinctBy { "${it.name}|${it.weekday}|${it.periodFrom}|${it.periodTo}" }
-        val inWeek = if (week == null) unique else unique.filter { it.meets(week) }
-        val todayIso = isoWeekday(today)
-        val current = PeriodTimes.currentPeriod(today)
+    private fun weekLine(timetable: Timetable, now: Calendar, today: LocalDate): String {
+        val parts = mutableListOf(Weekday.short(isoWeekday(now)))
+        val term = timetable.semester.labelEn.ifEmpty { timetable.semester.label }
+        if (term.isNotEmpty()) parts.add(term)
+        timetable.term?.holiday(today)?.let { parts.add(it.name) }
+        return parts.joinToString(" · ")
+    }
 
-        val laterToday = inWeek
-            .filter { it.weekday == todayIso && it.periodTo >= current }
-            .minByOrNull { it.periodFrom }
-        if (laterToday != null) return describe(laterToday, prefix = "")
-
-        val laterThisWeek = inWeek
-            .filter { it.weekday > todayIso }
-            .minWithOrNull(compareBy({ it.weekday }, { it.periodFrom }))
-        if (laterThisWeek != null) return describe(laterThisWeek, prefix = "${Weekday.short(laterThisWeek.weekday)} ")
-
-        return if (inWeek.any { it.weekday == todayIso }) getString(R.string.today_none_left)
-        else getString(R.string.today_no_classes)
+    /**
+     * The next meeting, on the real calendar.
+     *
+     * Without a calendar for this date the pattern-only reading is used — what
+     * the card did before the calendar existed. It is wrong on a holiday, but it
+     * beats declaring no classes at all for a term the app has no data for.
+     */
+    private fun nextUpText(timetable: Timetable, now: Calendar, today: LocalDate): String {
+        val currentPeriod = PeriodTimes.currentPeriod(now)
+        val term = timetable.term
+        val next = if (term != null) {
+            NextClass.find(timetable.entries, term, today, currentPeriod)
+        } else {
+            NextClass.findInWeek(timetable.entries, timetable.week, today, currentPeriod)
+        }
+        if (next != null) {
+            val prefix = if (next.date == today) "" else "${Weekday.short(next.date.dayOfWeek.value)} "
+            return describe(next.entry, prefix)
+        }
+        // Nothing ahead in the pattern at all, versus nothing left of today's.
+        return if (term == null && NextClass.hadClassToday(timetable.entries, timetable.week, today)) {
+            getString(R.string.today_none_left)
+        } else {
+            getString(R.string.today_no_classes)
+        }
     }
 
     private fun describe(entry: ClassEntry, prefix: String): String {
